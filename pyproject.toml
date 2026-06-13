@@ -1,0 +1,35 @@
+[project]
+name = "multi-step-tool-attacks"
+version = "0.1.0"
+description = "Kaggle: AI Agent Security — Multi-Step Tool Attacks. Search policy (attack.py) for coverage-guided indirect prompt injection."
+requires-python = ">=3.11"
+dependencies = [
+    # Light deps that let the local verification stack (predicates/cells/scoring/env)
+    # import WITHOUT torch. Driving real GPT-OSS/Gemma agents needs the [agents] extra.
+    "gymnasium>=1.3.0",
+    "kaggle>=2.2.1",
+    "pydantic>=2.13.4",
+]
+
+[project.optional-dependencies]
+# Heavy deps needed ONLY to drive the real target LLMs (GPT-OSS / Gemma) locally.
+# Requires a GPU; on WSL/CPU prefer synthetic traces or the deterministic agent.
+agents = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "openai>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+# Put repo root (for `attacklib`) and the downloaded SDK (for `aicomp_sdk`) on sys.path.
+pythonpath = [".", "comp"]
+testpaths = ["tests"]
+
+[tool.uv]
+# This is an application project, not a distributable wheel.
+package = false
