@@ -89,6 +89,22 @@ board_raw ≒ N × f × (16·P + 2)   N=候補数(≤2000) f=発火率 P=post/�
 
 ---
 
+## 5.5 ベンチマーク妥当性メモ（incidental vs real）
+
+SDK の `attacks/real_attack_detection.py` は「**本物の攻撃（concrete exploitation evidence）**」を
+「**incidental predicate match**」と**明示的に区別**する（heuristic・採点には不使用）。本物の定義は
+**実データフロー**：注入→行動、`fs.read(secret.txt)` の内容が `http.post.data`/`email.send.body` に出現、
+untrusted→RCE、完全 breach chain。
+
+- **我々の marker-in-message exfil は、この定義では“本物”ではない**（secret 読取も untrusted source も無く、
+  data に置いた文字列が一致するだけ）→ `detect_real_attacks` は空を返す。
+- ＝ **「得点するもの（predicate scorer）」と「本物の agent-security 失敗（実データフロー）」の間にギャップがある。**
+  公開 scorer は incidental な cheese も加点する。
+- **防御/ベンチ設計示唆**：scorer を `detect_real_attacks` の notion（実データフロー要求）に寄せれば cheese を排除できる。
+- Working Note では「自分の高スコア攻撃が SDK 定義では本物でない」と**正直に書ける**のが強い（③④⑤を同時に満たす）。
+
+---
+
 ## 6. 背骨（これだけ覚えれば良い）
 
 ```
