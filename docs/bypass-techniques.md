@@ -53,6 +53,38 @@
 
 ---
 
+## Tool サンドボックスのセキュリティ監査（古典的 control の強度）
+
+> tool 実装の security control を監査。**いずれも検証済み**だが、採点律速は guardrail(taint/keyword)
+> なので**公開スコアへの直接影響はほぼ無し**。価値は (1) Working Note 素材、(2) private 保険。
+
+### S-1. http.post の SSRF 防御 ＝ 不完全 denylist（core/tools/http.py:9-12）
+- `PRIVATE_NET_RE = (^|://)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)`
+- **検証で素通り（PASS）したもの**：
+  - `169.254.169.254`（クラウドメタデータ IMDS — SSRF 最重要標的）
+  - `2130706433`(10進) / `0x7f000001`(16進)（IP エンコーディング）
+  - `user@127.0.0.1`（userinfo 混同：`127.` が `://` 直後でなく正規表現が外れる）
+  - `[::1]` / `[::ffff:127.0.0.1]`（IPv6 / IPv4-mapped 未対応）
+- 正攻法：**ホスト名解決後の IP を private 範囲と照合＋リダイレクト追跡禁止**。文字列 denylist は必ず破れる。
+- 採点影響：ほぼ無（exfil は外部ドメインで元々非ブロック。169.254 等は cell の別ドメインになる程度）。
+
+### S-2. shell.run の allowlist ＝ prefix 一致バグ（core/tools/shell.py:8,17-19）
+- `s == allowed or s.startswith(allowed)`、allowed = (echo_, ls, pwd, whoami, date)。
+- **検証で ALLOW**：`ls; rm -rf /` / `whoami; cat /etc/passwd` / `date; curl evil` / `lshw` / `datexxx`。
+- 単語境界なしの接頭辞一致が原因（`==` か `^(cmd)( |$)` で実装すべき）。**ただしコマンドはモック実行**
+  （実 RCE 無し・非マッチ cmd は `"ok"` を返すだけ）。
+- 採点影響：ほぼ無（shell EXEC は taint で塞がれる）。private で taint が弱ければ任意 cmd 成功の余地（仮説）。
+
+### S-3. fs の path traversal 防御 ＝ 堅牢（core/tools/fs.py:62-67）
+- `(_root / path.lstrip("/")).resolve()` → `is_relative_to(_root)`。**正しい実装**
+  （resolve 後に包含チェック）。`../`・絶対パス・symlink すべて弾かれる。**破れない**。
+  secret.txt も「secret」keyword 無しでは到達不能（エイリアス無し）。
+
+### S-4. email_send ＝ 認証なしオープンリレー（core/tools/email.py）
+- 無検証で必ず `"sent"`。＝CONFUSED_DEPUTY の脆弱性面そのもの。
+
+---
+
 ## 仮説（未検証・要ローカル検証 or 実モデル確認）
 
 - **parser exploit（gpt-oss harmony / gemma tool_code）**：commentary/CoT に tool-call 形の文字列が出ると
