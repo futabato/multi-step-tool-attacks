@@ -29,6 +29,7 @@
 | [attack-success-conditions.md](attack-success-conditions.md) | 攻撃成功の3条件＋4述語の具体ツールコール・発火条件 | 確定（検証済） |
 | [scoring-strategy.md](scoring-strategy.md) | 評価式に紐づくレバー（発火率 f・候補数 N・post/候補 P）と public-測定/private-盲目 | **仮説マップ**（実行計画ではない） |
 | [bypass-techniques.md](bypass-techniques.md) | taint-aging・http.post data 非検査・severity 多重・tool サンドボックス監査（SSRF/allowlist/path） | 確定（ローカル検証済）／仮説／棄却 を分離 |
+| [qd-primer.md](qd-primer.md) | Quality-Diversity 探索の入門（MAP-Elites/NSLC/CMA-MAE/Go-Explore）＋本コンペへの橋渡し（得点式＝QD-score、公開は機械が退化・private で本領） | 入門＋確定 |
 | [model-and-redteam-recon.md](model-and-redteam-recon.md) | GPT-OSS/Gemma 特性、SDK パース面、AgentDojo/PAIR/TAP 等の手法をコンペにマップ | 確定＋公開情報 |
 | [reward-hacking_survey.md](reward-hacking_survey.md) | RL/事後学習由来の reward-hacking 攻撃仮説（一次ソース vs 推論を分離） | サーベイ・仮説 |
 | [multi-step-tool-attacks_survey.md](multi-step-tool-attacks_survey.md) | 攻略のための技術・研究・ガイドライン総覧 | サーベイ |
