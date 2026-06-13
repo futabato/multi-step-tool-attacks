@@ -48,9 +48,38 @@ def build() -> None:
         "Path('/kaggle/working/attack.py').write_bytes(base64.b64decode(_ATTACK_B64))\n"
         "print('Wrote /kaggle/working/attack.py ✅')\n"
     )
+    # Rerun -> serve() for real scoring. Commit/interactive -> run a SHORT
+    # deterministic local gateway so the committed version OUTPUTS submission.csv
+    # (Kaggle requires this for the version to be submit-eligible). Real models
+    # only run at the scored rerun. Pattern from the pilkwang EDA notebook.
     serve = (
+        "import os, shutil\n"
+        "from pathlib import Path\n"
+        "WORKING_DIR = Path('/kaggle/working')\n"
         "import kaggle_evaluation.jed_attack_134815.jed_attack_inference_server as server\n"
-        "server.JEDAttackInferenceServer().serve()\n"
+        "if os.getenv('KAGGLE_IS_COMPETITION_RERUN'):\n"
+        "    server.JEDAttackInferenceServer().serve()\n"
+        "else:\n"
+        "    os.environ['AICOMP_MODEL_NAMES'] = 'deterministic'\n"
+        "    import kaggle_evaluation.jed_attack_134815.jed_attack_gateway as gw\n"
+        "    from aicomp_sdk.evaluation.ops import resolve_fixtures_dir\n"
+        "    gw.MODEL_NAMES = ['deterministic']\n"
+        "    server.DEFAULT_SUBMISSION_DIR = WORKING_DIR\n"
+        "    if not hasattr(gw.JEDAttackGateway, '_orig_run_attack'):\n"
+        "        gw.JEDAttackGateway._orig_run_attack = gw.JEDAttackGateway._run_attack_for_model\n"
+        "    _orig = gw.JEDAttackGateway._orig_run_attack\n"
+        "    def _limited(self, model_name, guardrail_factory=gw.OptimalGuardrail,\n"
+        "                 budget_s=gw.DEFAULT_BUDGET_S, seed=gw.ATTACK_SEED):\n"
+        "        return _orig(self, model_name, guardrail_factory=guardrail_factory,\n"
+        "                     budget_s=5.0, seed=seed)[:20]\n"
+        "    gw.JEDAttackGateway._run_attack_for_model = _limited\n"
+        "    server.JEDAttackInferenceServer().run_local_gateway(\n"
+        "        data_paths=(str(resolve_fixtures_dir()),))\n"
+        "    for _n in ('submission.csv', 'submission_details.json'):\n"
+        "        _s = Path(_n)\n"
+        "        if _s.exists() and _s.resolve() != (WORKING_DIR / _n).resolve():\n"
+        "            shutil.copyfile(_s, WORKING_DIR / _n)\n"
+        "    print('submission.csv produced:', (WORKING_DIR / 'submission.csv').exists())\n"
     )
     nb = {
         "cells": [
