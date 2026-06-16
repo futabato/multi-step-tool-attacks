@@ -103,7 +103,8 @@ def _unload(server) -> None:
         pass
 
 
-def _score_model(model_name, attack_cls, budget_s, seed, fixtures_dir, n_gpu_layers, n_ctx, artifacts):
+def _score_model(model_name, attack_cls, budget_s, seed, fixtures_dir, n_gpu_layers, n_ctx, artifacts,
+                 attack_config=None):
     from aicomp_sdk.core.env.api import EnvSelection
     from aicomp_sdk.evaluation.runner import evaluate_redteam
     try:
@@ -131,6 +132,7 @@ def _score_model(model_name, attack_cls, budget_s, seed, fixtures_dir, n_gpu_lay
                 fixtures_dir=fixtures_dir,
                 diagnostics=diagnostics,
                 attack_env_seed=seed,
+                attack_config=attack_config or None,
             )
         a = execution.attack
         summary = {
@@ -289,6 +291,7 @@ def main() -> None:
     ap.add_argument("--fanout-probe", action="store_true", help="measure posts/hops at K=1,2,4,8 (the v5/v6 diagnostic; uses the first --models model)")
     ap.add_argument("--turns-probe", action="store_true", help="compare single-post phrasings by agent_turns/generations (the timeout-cost driver)")
     ap.add_argument("--check", action="store_true", help="import + constants only (no model load)")
+    ap.add_argument("--attack-config", default=None, help="JSON passed to AttackAlgorithm config, e.g. '{\"target_n\":300,\"deputy_quota\":30}' (shrink N for a fast local score)")
     ap.add_argument("--out", default=str(_REPO / "recon" / "artifacts"))
     args = ap.parse_args()
 
@@ -336,11 +339,14 @@ def main() -> None:
         _inspect(msgs, models[0], seed, fixtures_dir, args.n_gpu_layers, args.n_ctx)
         return
 
+    attack_config = json.loads(args.attack_config) if args.attack_config else None
+    if attack_config:
+        print(f"[attack-config] {attack_config}")
     scores = {}
     for m in models:
         print("\n" + "=" * 70 + f"\n  {m}\n" + "=" * 70)
         scores[m] = _score_model(m, attack_cls, budget, seed, fixtures_dir,
-                                 args.n_gpu_layers, args.n_ctx, artifacts)
+                                 args.n_gpu_layers, args.n_ctx, artifacts, attack_config=attack_config)
     if scores:
         scores["local_public_mean"] = round(sum(scores.values()) / len(scores), 3)
         print("\n=== LOCAL SCORES (≈ hosted public) ===")
