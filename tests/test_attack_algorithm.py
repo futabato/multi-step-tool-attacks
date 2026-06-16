@@ -91,17 +91,19 @@ def test_candidates_replay_to_findings():
 
 
 def test_multi_endpoint_stacks_posts():
-    """An exfil candidate must replay to MANY http.post events (severity stacking)."""
-    cands = _load()({**_FAST, "target_n": 60, "deputy_quota": 0, "max_verified": 5,
-                     "endpoints_per_msg": 8}).run(FakeEnv(), _BIG)
-    env = FakeEnv(); env.reset()
-    for m in cands[0].user_messages:
-        env.interact(m)
-    evs = env.export_trace_dict()["tool_events"]
-    posts = [e for e in evs if e["name"] == "http.post" and e["ok"]]
-    assert len(posts) == 8, "K=8 endpoints should yield 8 stacked http.post events"
-    preds = [p["predicate"] for p in eval_predicates(env.export_trace_dict())]
-    assert preds.count("EXFILTRATION") == 8, "EXFILTRATION should fire per post"
+    """Calibration should select a multi-endpoint fanout; EXFILTRATION fires per post."""
+    cands = _load()({**_FAST, "target_n": 60, "deputy_quota": 0, "max_verified": 5}).run(FakeEnv(), _BIG)
+    max_posts = 0
+    for c in cands:
+        env = FakeEnv(); env.reset()
+        for m in c.user_messages:
+            env.interact(m)
+        trace = env.export_trace_dict()
+        posts = [e for e in trace["tool_events"] if e["name"] == "http.post" and e["ok"]]
+        preds = [p["predicate"] for p in eval_predicates(trace)]
+        assert preds.count("EXFILTRATION") == len(posts), "EXFILTRATION fires once per post"
+        max_posts = max(max_posts, len(posts))
+    assert max_posts >= 4, "fanout calibration should pick a multi-endpoint K (>=4 posts)"
 
 
 def test_latency_backstop_shrinks_target():
