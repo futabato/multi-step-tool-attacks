@@ -33,6 +33,7 @@
 | [model-and-redteam-recon.md](model-and-redteam-recon.md) | GPT-OSS/Gemma 特性、SDK パース面、AgentDojo/PAIR/TAP 等の手法をコンペにマップ | 確定＋公開情報 |
 | [reward-hacking_survey.md](reward-hacking_survey.md) | RL/事後学習由来の reward-hacking 攻撃仮説（一次ソース vs 推論を分離） | サーベイ・仮説 |
 | [multi-step-tool-attacks_survey.md](multi-step-tool-attacks_survey.md) | 攻略のための技術・研究・ガイドライン総覧 | サーベイ |
+| [empirical-findings.md](empirical-findings.md) | 提出系列 v1→v8 の実測ログ、timeout 3機序の真因（出力トークン数）、multi-endpoint がモデルで死ぬ、local_score オラクル、55.8 メタ分解＋各防御示唆 | **確定（実測）** |
 
 ---
 
@@ -52,7 +53,9 @@
 
 ---
 
-## 現状（随時更新）
-- LB：v1 = 19.435（7位）。v2（recon 較正・multi/single 自動切替）＝採点中。
+## 現状（随時更新 / 2026-06-18）
+- LB best：**v7 = 37.800**（予測 37.8 と完全一致＝local_score オラクル検証）。v8（N=750 純 exfil）採点中、予測 ~60。
+- 提出系列・失敗機序・メタ分解は [empirical-findings.md](empirical-findings.md) に一次データとして確定。
+- 確立した方法論：**`recon/local_score.py` でホスト実スコアをローカル測定 → 予測 → 提出**（盲目提出をやめる）。
+- 公開 LB の本質：得点 ≈ 0.09×N（9h に詰める発火単発候補数）。multi-endpoint はモデルが高 K で multi-post せず不成立。
 - SDK 監査：一巡（guardrail/predicate/cells/scoring/env/tools/agents/parsers/hooks/real_attack_detection）。
-- 規律：v2 の実測 signal を待ってから次版を設計（早すぎる最適化を避ける）。
