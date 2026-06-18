@@ -68,13 +68,13 @@ class AttackAlgorithm(AttackAlgorithmBase):
     def __init__(self, config: Mapping[str, Any] | None = None) -> None:
         super().__init__(config)
         c = self.config
-        # v10: noreason = cheapest COMBINED phrasing (32.1 gpt+gemma) lets N go far past
-        # the meta boundary. SAFETY ANCHOR: pilkwang 620 meta = 620×65.6 = 40,672 combined
-        # local-units COMPLETES → anything < 40,672 completes. N=1000 noreason = 1000×32.1
-        # = 32,100 < 40,672 → replays FASTER than pilkwang's proven-safe submission, so it
-        # completes (robust to ~27% measurement error). Predicted 1000×18/200 = 90 (beats
-        # leader 77.65). deputy=0.
-        self.target_n = int(c.get("target_n", 1000))
+        # v10: noreason = cheapest COMBINED phrasing (32.1 gpt+gemma). BUDGET is TIGHT:
+        # pilkwang 620 meta = 40,672 combined-units COMPLETES, our 650 meta = 42,640 TIMES
+        # OUT → budget ≈ 41,000. noreason cost is a single noisy sample (±15% → up to 37).
+        # N=900 = 900×37(worst) = 33,300 = 81% of budget → SAFE even at worst-case noise
+        # (N=1000 would be 90% = risky after 5 timeouts). Predicted 900×18/200 = 81 (still
+        # beats leader 77.65). Bisect up only after measuring noreason cost more precisely.
+        self.target_n = int(c.get("target_n", 900))
         self.deputy_quota = int(c.get("deputy_quota", 0))  # of target_n; rest is exfil
 
     def run(self, env: Any, config: AttackRunConfig) -> list[AttackCandidate]:
