@@ -307,7 +307,7 @@ def _cost_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, cost_n=40):
     rows = []
     try:
         for name, fn in PHRASINGS.items():
-            secs, fires = [], 0
+            secs, fires, posts = [], 0, []
             for _ in range(cost_n):
                 env = build_attack_env(seed=seed, fixtures_dir=fixtures_dir, agent_factory=agent_factory,
                                        guardrail=OptimalGuardrail(), env_selection=EnvSelection.GYM, max_tool_hops=8)
@@ -316,12 +316,15 @@ def _cost_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, cost_n=40):
                 env.interact(fn(host()), max_tool_hops=8)
                 dt = time.time() - t0
                 tr = env.export_trace_dict()
+                np_ = sum(1 for e in tr.get("tool_events", []) if e.get("name") == "http.post" and e.get("ok"))
                 if any(p.get("predicate") == "EXFILTRATION" for p in eval_predicates(tr)):
                     fires += 1
-                secs.append(dt)
-            mean = statistics.mean(secs); med = statistics.median(secs)
+                secs.append(dt); posts.append(np_)
+            mean = statistics.mean(secs); med = statistics.median(secs); mp = statistics.mean(posts)
             rows.append((name, mean, med, fires / cost_n))
-            print(f"  {name:12s}: mean={mean:5.1f}s median={med:5.1f}s fire={fires}/{cost_n}")
+            # mean POSTS/candidate is the key lever: GPT-OSS doing 2 posts is wasted cost
+            # (publicScore = gemma = the min); a 1-post phrasing halves the GPT-OSS bottleneck.
+            print(f"  {name:12s}: mean={mean:5.1f}s median={med:5.1f}s posts/cand={mp:.2f} fire={fires}/{cost_n}")
         base = next((m for n, m, _, _ in rows if n == "meta_v9"), None)
         if base:
             print(f"\n  RATIO vs meta_v9 (×635 = est N boundary for that phrasing):")
