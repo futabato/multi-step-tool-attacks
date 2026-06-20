@@ -86,6 +86,21 @@
 
 **我々の実装含意（無料 hedge）**：exfil payload を `TOKEN=admin123` → **`sk_live_test`** に変えると公開コストゼロで keyword-走査 private に強くなる。＋ deputy 少量で literal-走査 private にも一系統残す。
 
+### 3.6 ★ 本物の private guardrail は **provenance ベース**（2026-06-20 ソース確定）
+
+`jed_attack_gateway.py:170` に `persistent_provenance_private`（`aicomp_private_guardrails.persistent_provenance.Guardrail`）。private LB（賞の本番）は **keyword でなくデータ provenance（由来）追跡**。wheel は採点時 install でローカル不可だが、SDK 構造から挙動を確定できる：
+- `guardrail.decide(tool, args, ctx)` の `ctx` に **`last_user`（user メッセージ）と `recent_sources`（直近5 tool の source: user/web/email/file/tool）** が渡る（`sandbox.py:288-296`）。＝ provenance guardrail は「この sink に流すデータがどこ由来か」を判定できる。
+- public の `track_untrusted_content`（patterns/paths を `untrusted_mentions` に蓄積）は SDK 内で**未呼び出し**＝ public は provenance 不使用。`persistent_provenance` はこれを**永続的に使う**強化版と解する。
+
+**到達可能性（provenance private）**：
+- **EXFILTRATION ❌**：secret データを http.post に流す＝provenance の禁止核心。read-then-post（secret.txt由来）も marker-in-message（user由来）も「secret-origin データ→sink」で deny される公算。**唯一の分岐**＝guardrail が user メッセージ内容を「信頼」するなら marker-in-message が生存しうる（不確実）。
+- **UNTRUSTED_TO_ACTION ❌**：untrusted read→action を provenance が塞ぐ。
+- **CONFUSED_DEPUTY ✅**：email.send・benign body・secret データを exfil しない → provenance に非該当。public でも発火する**唯一の万能系統**。
+
+**戦略含意**：公開の exfil N-race は**暫定**（provenance private で ~0 の公算）。**private/賞は CONFUSED_DEPUTY farming**（email.send to fresh recipient = distinct cell, sev3=6raw/finding）。最適提出は public 用 exfil ＋ private 用 deputy の混成（比率は public/private の賞重みに依存）。
+
+**防御示唆（主催者向け）**：provenance guardrail は literal-scan の綻び（§3.5）を正しく塞ぎ、「**user 注入データを sink に流す**」型を原理的に止める。これは nakamura 提案 #1 の正しい実装。残る CONFUSED_DEPUTY は「ユーザー意図の有無」を要する本質的に難しい判定で、ここを衝くのが**より本物の multi-step 攻撃**。ベンチが private で deputy を主軸にするのは妥当な設計。
+
 ## 4. 用語・関連
 
 - 採点機構の確定詳細：`scoring-mechanics`（memory）／`attack-success-conditions.md`。
