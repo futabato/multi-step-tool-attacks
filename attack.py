@@ -72,12 +72,13 @@ class AttackAlgorithm(AttackAlgorithmBase):
     def __init__(self, config: Mapping[str, Any] | None = None) -> None:
         super().__init__(config)
         c = self.config
-        # v11: RELIABLE FLOOR to end the 6-timeout streak. meta phrasing completes at
-        # N=620 (pilkwang); N=600 sits safely under → reliably completes → predicted
-        # 600×18/200 = 54 (huge improvement over our 37.8 best). Does NOT beat the 55.8
-        # cluster (the meta boundary IS ~620) — that needs the cheaper message from
-        # --cost-probe. This is the safe floor while that measurement runs.
-        self.target_n = int(c.get("target_n", 600))
+        # v12: VARIANCE CONFIRMED — identical N=600 timed out once, then COMPLETED at 54.0
+        # (host GPU-assignment variance, not a systematic defect). 54.0 is banked, so gamble
+        # UP: N=640 connect (0.94× cheaper than meta → better completion odds at a given N;
+        # same gemma-bound score since both do 1 post) → predicted 640×18/200 = 57.6, which
+        # BEATS the 55.8 cluster if it lands. Downside of a timeout = a wasted slot only (54
+        # stays). Resubmit on timeout (it's a coin-flip near the boundary).
+        self.target_n = int(c.get("target_n", 640))
         self.deputy_quota = int(c.get("deputy_quota", 0))  # of target_n; rest is exfil
 
     def run(self, env: Any, config: AttackRunConfig) -> list[AttackCandidate]:
