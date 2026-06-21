@@ -33,6 +33,7 @@
 | [model-and-redteam-recon.md](model-and-redteam-recon.md) | GPT-OSS/Gemma 特性、SDK パース面、AgentDojo/PAIR/TAP 等の手法をコンペにマップ | 確定＋公開情報 |
 | [reward-hacking_survey.md](reward-hacking_survey.md) | RL/事後学習由来の reward-hacking 攻撃仮説（一次ソース vs 推論を分離） | サーベイ・仮説 |
 | [multi-step-tool-attacks_survey.md](multi-step-tool-attacks_survey.md) | 攻略のための技術・研究・ガイドライン総覧 | サーベイ |
+| [ipi-format-injection-research.md](ipi-format-injection-research.md) | DeepResearch 統合：format/構造注入(ChatInject)・provenance 防御(CaMeL は user 指示を信頼=marker-in-message を通す)・egress filter 設計・AgentDojo/InjecAgent・攻撃↔防御マッピング | 外部文献 |
 | [empirical-findings.md](empirical-findings.md) | 提出系列 v1→v8 の実測ログ、timeout 3機序の真因（出力トークン数）、multi-endpoint がモデルで死ぬ、local_score オラクル、55.8 メタ分解＋各防御示唆 | **確定（実測）** |
 
 ---
