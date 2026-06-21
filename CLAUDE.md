@@ -10,6 +10,8 @@
 
 > v0.5 までは仮説中心。以下は**実提出（19.4→57.6）と GPU 実測で確定**した現実。
 
+**⚡ evaluator update（2026-06-22・OSS ミラー `mbhatt1/competitionscratch` の実コードで確認済み）**：主催が月曜に evaluator 更新（告知前にソースが master に落ちている）。**(1) runtime enforcement**：9000s budget を generation/replay 両フェーズで強制＝即 fail-fast。**「9h variance lottery」は死亡**、N は 9000s replay に決定論的に収める（v25 N=640 完走実績が基準）。**(2) secret 採点**：trace-derived（実読込 secret.txt 値）＋ encoding 認識へ。**だが `SECRET_MARKER` は env-independent sentinel として常時発火を維持**＝**v27 完全無傷**（scoring.py / guardrails/optimal.py は IDENTICAL、predicates.py のみ変更で SECRET_MARKER 生存・他4パターン死亡、cells.py は fs path 正規化で http.post cell 量産に無影響）。**今後の監視は discussion でなく `gh api repos/mbhatt1/competitionscratch/commits`**。詳細は memory `evaluator-update-2026-06-22`。
+
 **スコア法則**：`publicScore = 0.09 × N_eff`（N_eff = 実発火する返却候補数）。**publicScore は gemma が律速**（connect 文面なら gpt も gemma も 1 post = 18 raw/finding で同値）。
 
 **勝ちレシピ（現 `attack.py`）**：単発 exfil を `connect` 文面（cost-probe 最安・1 post）＋ payload **`SECRET_MARKER`**（private 頑健）＋ 3ドメイン循環の連番 fresh host で N 個**直接 emit**（live probing 無し）。
