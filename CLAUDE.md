@@ -1,10 +1,32 @@
 # CLAUDE.md — AI Agent Security: Multi-Step Tool Attacks
 
-> 本コンペに取り組む際の留意点を集約した living spec。
-> v0.5 / メンタルモデル（背骨）で再文脈化。未確認点は §8 に隔離し、確認後に昇格させる。
-> **背骨（§1.5 / `docs/mental-model.md`）**：これは「セキュリティを題材にした探索(QD)競技」。**攻撃面 = guardrail のポリシー と predicate の危害定義 の“ギャップ”**。モデルは**協力的 actuator**（測る／適応する、倒さない）。律速は **guardrail のギャップ ＋ replay 予算（発火率×候補数）**。
-> **訂正の核**：finding を生むのは guardrail ではなく `core/predicates.py`（採点判定器）。両者は別レイヤ（§1/§2/§3/§12）。
-> **公開 LB 戦略の核（§3/§9）**：到達可能なのは実質 EXFILTRATION（marker-in-message）＋二次 CONFUSED_DEPUTY。文面固定で f（発火率）を上げ、host ドメインだけ変異させて cell を量産。
+> 本コンペに取り組む際の留意点を集約した living spec。**v0.6**。
+> **§0.0（確定した実測）が最新の核心。§1–§13 は機構の詳細（§2/§3 は今も正確）だが、戦略・背骨は §0.0 で上書き済み。**
+> 実測の一次記録は `docs/empirical-findings.md`、LB/競合は memory `leaderboard-and-competitor-strategy`。
+
+---
+
+## 0.0 確定した実測（v0.6・最新の核心 — まずここを読めば動ける）
+
+> v0.5 までは仮説中心。以下は**実提出（19.4→57.6）と GPU 実測で確定**した現実。
+
+**スコア法則**：`publicScore = 0.09 × N_eff`（N_eff = 実発火する返却候補数）。**publicScore は gemma が律速**（connect 文面なら gpt も gemma も 1 post = 18 raw/finding で同値）。
+
+**勝ちレシピ（現 `attack.py`）**：単発 exfil を `connect` 文面（cost-probe 最安・1 post）＋ payload **`SECRET_MARKER`**（private 頑健）＋ 3ドメイン循環の連番 fresh host で N 個**直接 emit**（live probing 無し）。
+
+**★ 真の律速＝replay timeout（guardrail ではない）**：採点は返却候補を**全部 hops=8・両モデルで replay**（時間 deadline 無し）。9h カーネル上限を超えると **timeout＝全枠無得点**。1候補コスト = モデル生成トークン（**GPT-OSS の harmony `analysis`(reasoning) channel が gemma の 1.44×＝binding**）。**N の上限は GPU 割当 variance で決まる**（同一提出が timeout↔完走を行き来）。
+
+**到達点と次**：19.4 → 54.0 → **57.6（rank 19/923, top 2%）**。90 ティア = N≈1000 が完走すること＝**速い GPU 割当を引く宝くじ**（安い文面も per-model 技も無いと確定）。timeout を 7 回踏んで variance と判明。
+
+**死んだ／訂正された仮説（v0.5 から）**：
+- ❌ 「律速 = guardrail のギャップ」→ **replay timeout**。ギャップ（marker-in-message）は解決済みで律速でない。
+- ❌ 「GPT-OSS multi-endpoint 最大8 post / severity-stacking」→ **K≥4 で 0 post・stacking 不成立**（モデルが multi-post しない＋metric が EXFIL を trace 毎に dedup）。§7 の該当記述は無効。
+- ❌ 「reasoning 抑制で安くなる」→ **逆効果**（noreason/no_analysis は post 増・2-4×コスト）。
+- 訂正「private は marker-exfil を当然塞ぐ（§4）」→ **private = provenance guardrail**（`recent_sources`=read 由来のみ）で marker-in-message を**構造的に塞げない**＋ held-out は trace-derived secret 採点 → **`SECRET_MARKER` が全4枠頑健**（sk_live_test/TOKEN は held-out で死にうる）。`docs/empirical-findings §3.5/3.6`。
+
+**ローカル検証の確立（最重要インフラ）**：`recon/local_score.py` = SDK の `evaluate_redteam` で**実スコアを提出前に予測**（v7 予測 37.8 = 実測 37.800）。モード：`--fanout-probe`/`--cost-probe`(posts/cand)/`--turns-probe`/`--audit`(per-candidate エラー分析)/`--harmony-dump`(GPT-OSS analysis コスト)/`--inspect`。+ `recon/private_guardrail_sim.py`（private 生存性の決定論シム）。memory `local-score-harness`。
+
+**方法論（高コストで学んだ・[[feedback-disconfirm-and-harvest-first]]）**：① **測ってから出す**（盲目提出で 7 timeout）。② **ローカル単一サンプルは host コストを予測しない**（平均 cost-probe を使う）。③ **ソースで確定**（Codex 監査が hops=8・provenance・held-out を確定）。④ 競合解（pilkwang Working Note）を harvest → 我々の分析が最上位水準と確認。
 
 ---
 
@@ -35,6 +57,7 @@
 
 ## 1.5 メンタルモデル（背骨）
 
+> ⚠ **v0.6 訂正**：この背骨は「攻撃面＝guardrail-predicate ギャップ」「律速＝guardrail のギャップ」と置くが、**実測でギャップは解決済み（marker-in-message exfil で公開到達）、真の律速は replay timeout（GPU 割当 variance）に移った**。§0.0 が現実。下記は QD/breadth・関門モデルの枠組みとして読む（依然有効）が、「律速＝関門1（guardrail）」と「GPT-OSS 最大8 post」は無効。
 > 全体像。詳細は `docs/mental-model.md`。個々の発見はこの背骨に位置づけて読む。
 
 ```
@@ -51,8 +74,8 @@
 - 関門2 = tool サンドボックス(SSRF/allowlist/path) ← 得点にほぼ無関係（`docs/bypass-techniques.md`）
 - 関門3 = モデルが危険コールを出すか ← **recon で拒否ゼロ＝既に開いている**
 
-→ **得点を支配するのは関門1（guardrail のギャップ）**。jailbreak/reward-hacking（関門3）も tool バイパス（関門2）も公開スコアを動かさない。
-モデルが効くのは**量と形**（GPT-OSS=最大8 post、Gemma=1 post）→ **§7 の calibration で測って適応**。
+→ ⚠ **v0.6 訂正**：関門1（guardrail）は marker-in-message で解決済み＝もはや律速でない。**得点を支配するのは「関門4＝replay timeout」**（返却候補数 N × 1候補生成コスト < 9h、GPU 割当 variance）。jailbreak/reward-hacking（関門3）も tool バイパス（関門2）も公開スコアを動かさないのは正しい。
+~~モデルが効くのは量と形（GPT-OSS=最大8 post）~~ → **誤り。connect 文面で両モデル 1 post**。GPT-OSS が効くのは harmony analysis の生成コスト（gemma の 1.44×・timeout 律速）。§0.0 参照。
 
 ---
 
@@ -131,6 +154,8 @@ unique_cell_count = |{ finding.score_cell_signature.hash }|   # finding ごと�
 
 ## 4. public/private と oracle 過適合（最大の落とし穴）
 
+> ⚠ **v0.6 大幅訂正（§0.0・docs/empirical-findings §3.5/3.6・Codex OSS 監査）**：private guardrail は **`persistent_provenance`（provenance ベース）**と確定。`decide` の ctx は `recent_sources`(read 由来 tool のみ)＋`last_user`。**marker-in-message exfil（user メッセージに secret・read を経ず post）は recent_sources に痕跡が無く、provenance が構造的に塞げない**＝下記「marker-exfil は private で当然死ぬ」は**誤り**。真の private kill switch は採点側の **held-out trace-derived secret**（実読込＋`SECRET_MARKER` のみ発火）→ **payload `SECRET_MARKER` が全4枠頑健**、CONFUSED_DEPUTY は secret を流さない万能 hedge。以下は旧仮説として残置。
+
 - public guardrail は permissive（ギャップ広い）、private は厳格（ギャップ狭い）。**同一候補を両 guardrail で replay** するので、private に残るのは「**両方の guardrail が許可する ∧ predicate 発火**」だけ。
 - **残存性の正しい軸**＝「その危険フローを、もっともな guardrail がどれだけ**誤検知なしに塞げないか**」（盲点 vs 実装回避という軸より本質的）：
   - **taint-aging（実装回避）**：5イベント窓という実装弱点依存 → private が persistent taint / provenance なら即死。**残存性 低**。
@@ -185,8 +210,8 @@ unique_cell_count = |{ finding.score_cell_signature.hash }|   # finding ごと�
 GPT-OSS（Apache-2.0）・Gemma（ウェイト公開）= **ローカルに完全レプリカを立てられる**。
 
 - **オフライン white-box recon（＝calibration）**：コンペ 9,000 秒を消費せずに actuator 特性を実測。
-  - 実測済（`docs/recon-*`／メモリ）：**両モデル拒否ゼロ**。GPT-OSS は **connectivity/strict 文面で multi-endpoint 最大8 post**、Gemma は**常に1 post/メッセージ**（fanout 無関係）。deputy も両者発火。
-  - → attack.py は実行時 calibration で **multi-endpoint モード（GPT-OSS）/ 単発×大量モード（Gemma）を自動切替**。
+  - ⚠ **v0.6 訂正**：「GPT-OSS multi-endpoint 最大8 post」は**誤り**。`--fanout-probe` 実測で **K=1→1 post, K=2→2 post, K≥4→0 post**（高 K でツールコール自体を出さない）。両モデル拒否ゼロ・connect 文面で 1 post は正しい。deputy も両者発火。
+  - → multi-endpoint モード切替は**廃止**。正しい設計＝**単発 exfil を最安 connect 文面で N 個直接 emit**（§0.0）。
 - **actuator 特性の把握（攻撃の“量と形”、＋ private 用 escape hatch）**：
   - GPT-OSS：harmony（channel: analysis/commentary/final）。**analysis チャネルは final と同じ safety 基準で訓練されていない**＝**詰まった時の escape hatch**（CoT 経由でツールコールを出させる）。今は不要（拒否ゼロ）、private 保険。
   - Gemma：tool-call を regex 抽出（`<|tool_call>call:NAME{args}<tool_call|>`）。**1生成で複数 tool call は拒否**＝Gemma が 1 post/メッセージの一因。**ShieldGemma は本コンペのパイプラインに非搭載**（v0.4 までの「ShieldGemma の閾値が攻撃面」は誤り。ゲートは guardrail のみ）。
@@ -204,20 +229,16 @@ GPT-OSS（Apache-2.0）・Gemma（ウェイト公開）= **ローカルに完全
 - [x] `AttackAlgorithmBase`（`attacks/contracts.py`）/ `OptimalGuardrail`（`guardrails/optimal.py`）の実装：精読済。→ §1/§3。
 - [x] severity 付与ロジック：`predicates.py`（4 述語、§3 の表）。
 - [x] 4 述語の発火条件 ＋ guardrail deny 条件：§3 に列挙。
-- [ ] **side_effect / source / scope の付与**：どのツールが EXEC/SHARE/WRITE か、source=web/email/file の割当（`core/tools/` 側）。UNTRUSTED_TO_ACTION の設計に必須。
-- [ ] エージェント（GPT-OSS/Gemma）の**決定論化**：temperature/seed の固定法、refusal 頻度（`agent_refused`）。
-- [ ] Kaggle gateway（`kaggle_evaluation/jed_attack_134815/`）の attack.py 配線・実行予算が「評価器側」か「Notebook 側」か。
-- [ ] fixtures の中身（`secret.txt`/`api_keys.txt`/`mh_*.txt`/`web_corpus.json`/`mail_seed.json`）— 注入面と multi-hop seed の実体。
-- [ ] コミュニティ "Baseline Solution"（スコア 4.900）の中身と、それがどの枠のスコアか
+- [x] **決定論化**：replay は temp 0（`do_sample:False`）・seed 123（Codex 確定）。refusal は実測ゼロ。
+- [x] **gateway 配線・予算**（Codex 確定）：ホスト採点 = `jed_attack_gateway._replay_and_score`。返却候補を**全部 hops=8・両モデル replay、時間 deadline 無し**。9h は**カーネル wall-clock 上限**（提出 Notebook 自体）。生成フェーズ+replay が各々 budget を使う（最大 2×）。→ §0.0。
+- [x] **コミュニティ baseline**：解析済（trajectory-search 系・単発 breadth・N 最大化）。memory 参照。
+- [ ] side_effect / source / scope の細部（UNTRUSTED_TO_ACTION 用・公開では死ぬので優先度低）。
 
-### ルール未確認（Rules 本文が JS 保護で読み切れず）
-- [ ] 参加資格（対象国・年齢・エンティティ制限）
-- [x] **本 LB の賞金額**：**$50,000 USD**（slug `ai-agent-security-multi-step-tool-attacks`、entry 済）。受賞人数は未確認。
-- [ ] **受賞時の義務**：勝者コードの OSI ライセンス公開要件（Kaggle 標準だと MIT/Apache 等での開示が課されることが多い）、ソリューション提出・再現要件
-- [ ] 外部データ・外部 pretrained モデル・ネット接続の可否（Notebook 内）
-- [ ] **1 日あたり提出上限**・最終選択 submission 数
-- [ ] Notebook の実行時間・リソース上限（評価器側の 9,000 秒/モデルとは別の、提出 Notebook 自体の制限）
-- [ ] 9,000 秒が「評価器内のホスト実行予算」か「提出 Notebook の実行予算」かの確定
+### ルール（確定分）
+- [x] **賞金 $50,000 USD**（entry 済）＋ Working Note Award $2,500×2（任意・2026-09-08）。
+- [x] **1 日提出上限 = 5**、同時採点は 1 件ずつ（~数h〜9h）。
+- [x] **GPU Notebook ≤ 9h・ネット無効**（採点 rerun もこれが律速＝timeout の正体）。外部公開モデル/データ可。
+- [ ] 受賞時の義務（OSI ライセンス公開等）— 未確認だが当面無関係。
 
 ---
 
@@ -301,6 +322,7 @@ GPT-OSS（Apache-2.0）・Gemma（ウェイト公開）= **ローカルに完全
 ---
 
 ## 改訂履歴
+- **v0.6（2026-06-21）：実測で背骨を訂正**。§0.0「確定した実測」を新設（S=0.09×N_eff・gemma 律速・勝ちレシピ connect+SECRET_MARKER・**真の律速＝replay timeout(GPU 割当 variance)**・19.4→57.6 rank19/923・90=宝くじ・ローカル検証 local_score・方法論）。§1.5/§7 の「律速＝guardrail ギャップ」「GPT-OSS 最大8 post / multi-endpoint / severity-stacking」を**無効化**（fanout-probe で K≥4=0post 実測）。§4 を「private=provenance（marker-in-message を構造的に塞げない）＋held-out trace-derived→SECRET_MARKER 頑健」に大幅訂正。§8 を Codex 確定（hops=8・deadline 無し・9h カーネル wall・決定論）と確定ルール（提出上限5・9h・賞金）で解消。詳細は `docs/empirical-findings.md`、memory `leaderboard-and-competitor-strategy`/`local-score-harness`。
 - v0.5：メンタルモデル（背骨）で**再文脈化**（消さず位置づけ直し）。§1.5 を新設（攻撃面＝guardrail-predicate ギャップ／モデル＝協力的 actuator／3関門／なぜ軽量オープン）。§3 を「素のモデル攻撃」から「ギャップを突く・関門3 は拒否ゼロで既に開いている」に改題。§4 の private 残存軸を「誤検知なしに塞げないか」に補正（marker-exfil も fragile、DEPUTY は robust・低価値のトレードオフ）。§7 を「白箱＝actuator calibration（jailbreak ではない・recon 実測値）」に再文脈化し **ShieldGemma 非搭載**を訂正、harmony/CoT を private escape hatch に位置づけ。§10 Stage2/3 を calibration＋発火率最適化／盲目 private hedge に更新。`docs/mental-model.md` 等へリンク。
 - v0.1：初版。会話からの留意点を集約。§8 未確認点を starter 確認待ちとして隔離。
 - v0.2：Rules タブ反映。§11 ルール要点（タイムライン・提出メカニクス・手法許容範囲・賞）を新設。§2 に採点 3 軸、§5(b) に攻撃者 LLM 許可確定、§0 に critical 日付を追記。§8 にルール未確認項目（賞金額・受賞時ライセンス義務・外部データ/ネット可否・提出上限・Notebook 実行制限）を追加。移植参照を §13 に繰り下げ。
