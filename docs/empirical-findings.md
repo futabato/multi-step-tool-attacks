@@ -101,6 +101,24 @@
 
 **防御示唆（主催者向け）**：provenance guardrail は literal-scan の綻び（§3.5）を正しく塞ぎ、「**user 注入データを sink に流す**」型を原理的に止める。これは nakamura 提案 #1 の正しい実装。残る CONFUSED_DEPUTY は「ユーザー意図の有無」を要する本質的に難しい判定で、ここを衝くのが**より本物の multi-step 攻撃**。ベンチが private で deputy を主軸にするのは妥当な設計。
 
+## 3.7 per-candidate エラー分析（2026-06-21・`--audit`）
+
+現 attack.py（connect + SECRET_MARKER）の exfil 候補を1つずつ replay（60候補・両モデル）：
+
+| 指標 | GPT-OSS | Gemma |
+|---|---|---|
+| 発火率 | 60/60 = 100% | 60/60 = 100% |
+| posts/cand | 1.03（1件だけ 3 post）| 1.00（完璧）|
+| turns/cand | 2〜4 | 2（一律）|
+| replay秒 min/median/p90/max | 13.1 / **18.6** / 21.4 / 50.4 | 11.9 / **12.9** / 17.9 / 40.9 |
+| 異常候補 | 1件（multi-post, 1.7%）| 0件 |
+
+**結論**：
+- **潰せる per-candidate エラーは実質無い**（100%発火・~98%が理想 1post/2turns）。GPT-OSS の稀な multi-post（1.7%・2.7×コスト）は score 無影響（publicScore=gemma・gemma は完璧）、timeout に ~3% の微影響のみ。
+- **真のボトルネック＝GPT-OSS の生成コスト**：同一メッセージ・同一 1post/2turns でも **GPT-OSS 18.6s vs Gemma 12.9s（1.44×）**。差は GPT-OSS の harmony analysis(reasoning) channel の余分なトークン。GPT-OSS が binding（local 見積 ~480候補 vs gemma ~700）。
+- ＝ **ceiling は「攻撃側の非効率」でなく「GPT-OSS の reasoning 生成コスト × replay 予算 × GPU 割当」**。pilkwang の「generation-bound wall」を per-candidate で確証。
+- **残るレバー（未踏）**：GPT-OSS の reasoning を削れれば ceiling が ~1.44× 上がる＝宝くじでなく実力で wall を超える。harmony channel 特化の介入が候補（message engineering 一般では pilkwang が closed と結論）。
+
 ## 4. 用語・関連
 
 - 採点機構の確定詳細：`scoring-mechanics`（memory）／`attack-success-conditions.md`。
