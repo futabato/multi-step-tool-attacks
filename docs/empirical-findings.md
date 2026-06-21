@@ -139,6 +139,20 @@ GPT-OSS の生 harmony 出力を捕捉し、analysis(reasoning) channel の文�
 
 **防御示唆/ベンチ知見**：reasoning を discard する harmony parser ＋ 9h replay 予算の組合せが、攻撃を「単発 breadth の throughput 競争」に縮約し、その上限を**モデル生成コスト × ハード割当**が決める。＝ 公開 LB は攻撃の巧拙でなく実行効率・運を測る（nakamura の (3) と一致）。
 
+## 3.10 Gemma 構造注入は不可＝inj_decided_comm が攻撃側最適（2026-06-21）
+
+inj_decided_comm 後の新ボトルネック gemma(12.0s) を、gemma の tool_code フォーマット（`<|tool_call>call:NAME{...}<tool_call|>`）注入で削れるか検証（cost-probe 30サンプル両モデル）：
+
+| 文面 | GPT-OSS | Gemma 発火 | 両立 |
+|---|---|---|---|
+| **inj_decided_comm** | 6.3s | **12.0s / 100% / posts 1.00** | ✅ **最適** |
+| inj_gemma_prime | 13.0s | 13.6s / **93%** / posts 0.93 | ❌ gemma の自前 format prime が発火を下げる |
+| inj_combined_g_last | 6.1s | 7.9s / **0%発火** | ❌ harmony トークンが gemma parser を破壊 |
+| inj_combined_h_last | 6.1s | 13.9s / 100% | △ gemma が遅化（12.0→13.9）|
+
+**結論**：(1) **Gemma の preamble は構造注入で削れない**（自前 format prime は発火を壊す・combined は gemma を殺すか遅化）。(2) **inj_decided_comm が両モデル最適＝攻撃側のコスト下限**。(3) ボトルネックは gemma 12.0s（削減不能）。
+**N ceiling**：combined = gpt 6.3 + gemma 12.0 = 18.3s/候補（timeout は**両モデルの和**）vs connect 27.4s ＝ **1.5×安** → N ceiling ~640→**~960**。N=1000 は edge 上＝コイントス。reliable 上限は N~900-950（~81-85）。
+
 ## 4. 用語・関連
 
 - 採点機構の確定詳細：`scoring-mechanics`（memory）／`attack-success-conditions.md`。
