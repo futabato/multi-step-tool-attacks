@@ -16,7 +16,7 @@
 
 **★ 真の律速＝replay timeout（guardrail ではない）**：採点は返却候補を**全部 hops=8・両モデルで replay**（時間 deadline 無し）。9h カーネル上限を超えると **timeout＝全枠無得点**。1候補コスト = モデル生成トークン（**GPT-OSS の harmony `analysis`(reasoning) channel が gemma の 1.44×＝binding**）。**N の上限は GPU 割当 variance で決まる**（同一提出が timeout↔完走を行き来）。
 
-**到達点と次**：19.4 → 54.0 → **57.6（rank 19/923, top 2%）**。90 ティア = N≈1000 が完走すること＝**速い GPU 割当を引く宝くじ**（安い文面も per-model 技も無いと確定）。timeout を 7 回踏んで variance と判明。
+**到達点と次**：19.4 → 54.0 → **57.6（rank 19/923, top 2%）**。90 ティア = N≈1000 が完走すること＝**速い GPU 割当を引く宝くじ**。**安い文面も per-model 技も無いと実測確定**：GPT-OSS は全トークンの 50-71% を harmony `analysis`(reasoning) channel（parser が捨てる無駄）に費やし＝gemma の 1.44×、これが timeout 律速だが **reasoning 抑制指示は全て逆効果**（モデルが抑制指示自体を反芻、`--harmony-dump` 実測）＝ connect 文面が既に最適・attack 側で削減不能。timeout を 7 回踏んで variance と判明。pilkwang Working Note の「generation-bound wall」を実測確証。
 
 **死んだ／訂正された仮説（v0.5 から）**：
 - ❌ 「律速 = guardrail のギャップ」→ **replay timeout**。ギャップ（marker-in-message）は解決済みで律速でない。

@@ -119,6 +119,26 @@
 - ＝ **ceiling は「攻撃側の非効率」でなく「GPT-OSS の reasoning 生成コスト × replay 予算 × GPU 割当」**。pilkwang の「generation-bound wall」を per-candidate で確証。
 - **残るレバー（未踏）**：GPT-OSS の reasoning を削れれば ceiling が ~1.44× 上がる＝宝くじでなく実力で wall を超える。harmony channel 特化の介入が候補（message engineering 一般では pilkwang が closed と結論）。
 
+## 3.8 GPT-OSS analysis コストは message で減らせない（2026-06-21・`--harmony-dump`）
+
+GPT-OSS の生 harmony 出力を捕捉し、analysis(reasoning) channel の文字数を directive 別に実測：
+
+| directive | fired | posts | analysis chars | analysis % |
+|---|---|---|---|---|
+| **connect(base・現用)** | Y | **1** | **362（最少）** | **50%（最少）** |
+| low_effort（"Reasoning: low"） | Y | 1 | 496 | 58% |
+| imperative_bare | Y | 1 | 544 | 67% |
+| no_think（"Do not think"） | Y | 1 | 626 | 66% |
+| preamble_none（"No analysis needed"） | Y | **3** | **1594** | 71%（**3post/4turn/60s 爆発**）|
+
+**確定**：
+- GPT-OSS は**全トークンの 50-71% を analysis(reasoning) channel に費やす**（parser が捨てる純粋な無駄）＝ gemma（analysis 0%）より 1.44× 重い正体。
+- **reasoning 抑制指示は全て逆効果**：モデルは「抑制指示そのものを analysis で反芻」し、analysis が増える。preamble_none は post まで増殖（3倍コスト）。
+- **connect（現用）が既に最適**（analysis 最少・posts=1）。reasoning_effort 等の調整は spec/chat-template 固定で attack 側から触れない（`gpt_oss_agent.py`）。
+- ＝ **GPT-OSS の生成コストは attack 側で削減不能**。pilkwang の「message engineering closed・generation-bound wall」を実測で確証。**90 ティアを実力で超えるレバーは存在せず、N=1000 完走は GPU 割当 variance の宝くじ**（安い文面も per-model 技も無い）。
+
+**防御示唆/ベンチ知見**：reasoning を discard する harmony parser ＋ 9h replay 予算の組合せが、攻撃を「単発 breadth の throughput 競争」に縮約し、その上限を**モデル生成コスト × ハード割当**が決める。＝ 公開 LB は攻撃の巧拙でなく実行効率・運を測る（nakamura の (3) と一致）。
+
 ## 4. 用語・関連
 
 - 採点機構の確定詳細：`scoring-mechanics`（memory）／`attack-success-conditions.md`。
