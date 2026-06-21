@@ -38,6 +38,20 @@
 - **encoding-gap**：paraphrase/encoding は content filter を破る（Leak+Rewrite 81-87%）。本コンペ AUDIT の「encoding-aware 検出」追加はこれへの対策。literal-match と難読化耐性は二律背反。
 - **防御の決定版**：allowlist（宛先）＋ payload 監査＋ entropy/leaky-bucket 量制御＋ read/write 分離。
 
+## 3.9 MoE 攻撃面（DeepResearch 2026-06-21・negative result）
+
+両モデルは MoE（GPT-OSS 21B-A3.6B / Gemma-4 26B-A4B）。MoE 固有攻撃を「我々の決定論・隔離・単一プロンプト・temp0 replay に適用できるか」で仕分け（全て高確信・検証済み）：
+
+| MoE 攻撃クラス | 適用可否 | 理由 |
+|---|---|---|
+| **cross-batch prompt-stealing**（Hayes/Yona et al. arXiv:2410.22884・token-dropping/torch.topk tiebreak）| ❌ 不適用 | 攻撃者と被害者を**同一バッチに co-locate**する必要。隔離 replay では不成立。加えて GPT-OSS/Gemma は **token-choice top-k**（Expert-Choice でない）で機構が転送しない。|
+| **routing による expert 偏向**（Misrouter/SAFEx）| ❌ 無関係 | 入力で routing を偏らせられるが、実証された payoff は **jailbreak/ASR 改善のみ**。我々は**拒否ゼロ**で不要。|
+| **MoE コスト/計算量操作** | ❌ レバー無し | **MoE は per-token 計算量が固定**（Switch Transformer：top-k なので入力で expert 数＝計算量不変）。**唯一の生成コストレバー＝総出力トークン数**＝harmony/gemma 注入で既に突いている軸。MoE は新レバーを足さない。|
+| **sponge / energy-latency**（Sponge Examples/Engorgio/LoopLLM）| ⚠ 逆効果 | 出力長を**増やす**＝**踏むべきでない失敗モード**（避ける対象。冗長出力を誘発しない）。|
+
+**結論**：MoE 固有の攻撃面は我々の採点に**何も与えない**（cost レバー無し・jailbreak 不要）。生成コストは「総トークン数」のみで決まり、それは format 注入で削るのが正攻法（§3.8）。
+**Working Note 位置づけ**：多くの agent-security ベンチは model を black box 扱い＝**MoE 構造は未探索の軸**。「MoE 固有チャネルは隔離・決定論採点で崩れる」という honest な negative result 自体がベンチ設計の知見。
+
 ## 4. ベンチマーク（位置づけ）
 
 - **AgentDojo（arXiv:2406.13352, ACL）**：tool-filtering が最強防御（ASR 57.7→6.8%）**だが「危害に必要な tool が正規にも必要」な場合に失敗（17%）**＝ **read/write 非対称**。本コンペの http.post（正規にも使う）exfil がまさにこれ＝tool 制限では塞げない構造。
