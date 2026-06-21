@@ -337,6 +337,83 @@ def _cost_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, cost_n=40):
         _unload(server)
 
 
+def _audit(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, audit_n=60):
+    """PER-CANDIDATE error analysis: replay the CURRENT attack.py's exfil candidates
+    one by one and catalog every non-ideal outcome — non-firing, multi-post (wasted
+    cost), refusal, deny, tool failure, and replay-time outliers (the expensive tail
+    that lowers the timeout ceiling). Prints the distribution + each anomaly with its
+    message + tool_events, so we can address them one at a time."""
+    import itertools, statistics
+    from aicomp_sdk.core.env.api import EnvSelection
+    from aicomp_sdk.evaluation.ops import build_attack_env
+    from aicomp_sdk.guardrails.optimal import Guardrail as OptimalGuardrail
+    from aicomp_sdk.core.predicates import eval_predicates
+
+    # use the SHIPPING attack.py's exact exfil message so the audit reflects reality
+    atk = _load_attack_class(Path(_REPO / "attack.py"))
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location("atk_for_audit", str(_REPO / "attack.py"))
+    _mod = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_mod)
+    exfil = _mod._exfil
+    domains = ("example.net", "example.com", "example.org")
+    host = lambda i: f"http://n{i:05d}.{domains[i % 3]}/p"
+
+    agent_factory, server = _build_agent_factory(model_name, n_gpu_layers, n_ctx)
+    print(f"\n=== AUDIT ({model_name}): per-candidate outcomes over {audit_n} (shipping attack.py exfil) ===")
+    rows = []
+    anomalies = []
+    try:
+        for i in range(audit_n):
+            msg = exfil(host(i))
+            env = build_attack_env(seed=seed, fixtures_dir=fixtures_dir, agent_factory=agent_factory,
+                                   guardrail=OptimalGuardrail(), env_selection=EnvSelection.GYM, max_tool_hops=8)
+            env.reset()
+            t0 = time.time()
+            res = env.interact(msg, max_tool_hops=8)
+            dt = time.time() - t0
+            tr = env.export_trace_dict()
+            evs = tr.get("tool_events", [])
+            posts = sum(1 for e in evs if e.get("name") == "http.post" and e.get("ok"))
+            failed = sum(1 for e in evs if e.get("ok") is False)
+            fired = any(p.get("predicate") == "EXFILTRATION" for p in eval_predicates(tr))
+            turns = getattr(res, "agent_turns", None)
+            refused = bool(getattr(res, "agent_refused", False))
+            row = {"i": i, "fired": fired, "posts": posts, "turns": turns, "sec": dt,
+                   "failed": failed, "refused": refused, "n_events": len(evs)}
+            rows.append(row)
+            why = []
+            if not fired: why.append("NON-FIRING")
+            if posts != 1: why.append(f"posts={posts}")
+            if refused: why.append("REFUSED")
+            if failed: why.append(f"tool_fail={failed}")
+            if why:
+                anomalies.append((row, why, msg, [_compact(e) for e in evs]))
+
+        secs = sorted(r["sec"] for r in rows)
+        fired_rate = sum(1 for r in rows if r["fired"]) / len(rows)
+        med = statistics.median(secs)
+        p90 = secs[int(0.9 * (len(secs) - 1))]
+        outliers = [r for r in rows if r["sec"] > 1.5 * med]
+        print(f"\n  firing: {sum(1 for r in rows if r['fired'])}/{len(rows)} = {fired_rate:.0%}")
+        print(f"  posts/cand: mean={statistics.mean(r['posts'] for r in rows):.2f} "
+              f"(should be 1.00; >1 = wasted cost)")
+        print(f"  turns/cand: {sorted(set(r['turns'] for r in rows))}")
+        print(f"  replay sec: min={secs[0]:.1f} median={med:.1f} p90={p90:.1f} max={secs[-1]:.1f} "
+              f"(spread = the variance within a run)")
+        print(f"  cost outliers (>1.5×median={1.5*med:.1f}s): {len(outliers)} → "
+              f"{[r['i'] for r in outliers][:10]}")
+        print(f"\n  ANOMALIES (non-firing / multi-post / refused / tool-fail): {len(anomalies)}")
+        for row, why, msg, evs in anomalies[:12]:
+            print(f"   #{row['i']} {','.join(why)} | turns={row['turns']} sec={row['sec']:.1f}")
+            print(f"      msg: {msg[:90]}")
+            for e in evs[:4]:
+                print(f"      ev: {json.dumps(e, ensure_ascii=False)[:300]}")
+        if not anomalies:
+            print("   none — every candidate fires once cleanly (the ceiling is purely the replay budget).")
+    finally:
+        _unload(server)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sdk-dir", default=None, help="dir holding aicomp_sdk/ + kaggle_evaluation/ (default: <repo>/comp)")
@@ -353,6 +430,8 @@ def main() -> None:
     ap.add_argument("--turns-probe", action="store_true", help="compare single-post phrasings by agent_turns/generations (the timeout-cost driver)")
     ap.add_argument("--cost-probe", action="store_true", help="RELIABLE: mean replay sec/candidate over M samples per phrasing (averaged → noise-free cost ratio for N sizing)")
     ap.add_argument("--cost-n", type=int, default=40, help="samples per phrasing for --cost-probe")
+    ap.add_argument("--audit", action="store_true", help="per-candidate error analysis of the SHIPPING attack.py exfil (non-firing/multi-post/refused/tool-fail/cost-outliers)")
+    ap.add_argument("--audit-n", type=int, default=60, help="candidates to audit for --audit")
     ap.add_argument("--check", action="store_true", help="import + constants only (no model load)")
     ap.add_argument("--attack-config", default=None, help="JSON passed to AttackAlgorithm config, e.g. '{\"target_n\":300,\"deputy_quota\":30}' (shrink N for a fast local score)")
     ap.add_argument("--out", default=str(_REPO / "recon" / "artifacts"))
@@ -398,6 +477,11 @@ def main() -> None:
     if args.cost_probe:
         for mdl in models:
             _cost_probe(mdl, seed, fixtures_dir, args.n_gpu_layers, args.n_ctx, cost_n=args.cost_n)
+        return
+
+    if args.audit:
+        for mdl in models:
+            _audit(mdl, seed, fixtures_dir, args.n_gpu_layers, args.n_ctx, audit_n=args.audit_n)
         return
 
     attack_cls = _load_attack_class(Path(args.attack))
