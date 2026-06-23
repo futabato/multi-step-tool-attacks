@@ -93,8 +93,12 @@ class AttackAlgorithm(AttackAlgorithmBase):
         super().__init__(config)
         c = self.config
         # Per-model N ceilings (term_noexplain, derived from connect's confirmed N=640 pass:
-        # gpt 0.43x -> ~1488, gemma 0.93x -> ~688). Submit just under, with margin.
-        self.gpt_n = min(int(c.get("gpt_n", 1400)), 2000)
+        # gpt 0.43x -> ~1488, gemma 0.93x -> ~688). STAGED: first submission is conservative
+        # (gpt_n=1300 = 87% of the ~1488 estimate, 13% margin; gemma_n=660 < ~688) to confirm
+        # detection-over-RPC + mean-aggregation + that gpt swallows a big N WITHOUT a 19h
+        # timeout-queue-block. Expected public = mean(0.09*1300, 0.09*660) = mean(117, 59.4)
+        # ~= 88.2. Once a tailored submission completes cleanly, bump gpt_n toward 1450.
+        self.gpt_n = min(int(c.get("gpt_n", 1300)), 2000)
         self.gemma_n = min(int(c.get("gemma_n", 660)), 2000)
         # Detection: ratio = median(harmony_only)/median(connect); >= threshold -> gpt_oss.
         self.probe_k = int(c.get("probe_k", 2))
