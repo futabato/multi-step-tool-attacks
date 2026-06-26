@@ -96,7 +96,16 @@ class AttackAlgorithm(AttackAlgorithmBase):
         self.deputy_quota = int(c.get("deputy_quota", 0))  # of the per-model N; rest is exfil
         # Optional overrides: force a model ("gpt_oss"/"gemma") or a flat N for both models.
         self.force_model = str(c.get("force_model", "") or "")
-        self.flat_n = int(c.get("flat_n", 0))  # >0 -> ignore order, use this N for both
+        # v29.2 DIAGNOSTIC: every submission since the 57.6 (N=640 flat, 2026-06-20) has come
+        # back blank while OTHER teams keep scoring -> a regression on OUR side, and the
+        # notebook control logic is byte-identical to the 57.6 one (verified), so it's the
+        # attack.py / N. Before re-enabling order-counter tailoring, prove the pipeline still
+        # SCORES with the simplest safe config: FLAT term_noexplain N=600 (well under the
+        # proven 640) for BOTH models. Expected mean(0.09*600,0.09*600)=54. If this scores ->
+        # pipeline is healthy and the blanks were N-too-big / the order-counter; then rebuild
+        # N up. If this ALSO blanks -> a deeper pipeline/format issue to chase. Set flat_n=0
+        # (+ gpt_n/gemma_n) to re-enable tailoring once the baseline is reconfirmed.
+        self.flat_n = int(c.get("flat_n", 600))  # >0 -> ignore order, use this N for both
 
     def _emit(self, target_n: int) -> list[AttackCandidate]:
         cands: list[AttackCandidate] = []
