@@ -96,16 +96,18 @@ class AttackAlgorithm(AttackAlgorithmBase):
         self.deputy_quota = int(c.get("deputy_quota", 0))  # of the per-model N; rest is exfil
         # Optional overrides: force a model ("gpt_oss"/"gemma") or a flat N for both models.
         self.force_model = str(c.get("force_model", "") or "")
-        # v29.2 DIAGNOSTIC: every submission since the 57.6 (N=640 flat, 2026-06-20) has come
-        # back blank while OTHER teams keep scoring -> a regression on OUR side, and the
-        # notebook control logic is byte-identical to the 57.6 one (verified), so it's the
-        # attack.py / N. Before re-enabling order-counter tailoring, prove the pipeline still
-        # SCORES with the simplest safe config: FLAT term_noexplain N=600 (well under the
-        # proven 640) for BOTH models. Expected mean(0.09*600,0.09*600)=54. If this scores ->
-        # pipeline is healthy and the blanks were N-too-big / the order-counter; then rebuild
-        # N up. If this ALSO blanks -> a deeper pipeline/format issue to chase. Set flat_n=0
-        # (+ gpt_n/gemma_n) to re-enable tailoring once the baseline is reconfirmed.
-        self.flat_n = int(c.get("flat_n", 600))  # >0 -> ignore order, use this N for both
+        # v29.3 ROOT CAUSE FOUND (pilkwang forum post, 2026-06-27): "Submission Format Error"
+        # since the v3.1.2 update (06-22) is NOT a malformed file — it's a TIMEOUT. The enforced
+        # 9,000 s/phase budget + tight GPU caps the replay at the LOW HUNDREDS of candidates:
+        # pilkwang gets a clean 27.0 at N=300 and reliable format-errors (timeouts) at N>=400.
+        # Our N=600-1150 were all 2-4x over the ceiling -> all timed out -> all "Format Error"
+        # (our stub/env/order-counter hypotheses were all wrong). 0.09*N still holds (0.09*300
+        # =27.0). So: FLAT N=280 (safely under pilkwang's 300-works/400-fails; our term_noexplain
+        # may be cheaper so we can bisect up after this confirms). Expected ~25. This also gives
+        # us a v3.1.2-COMPLETING submission, which matters because the stale 57.6 (N=640) will
+        # likely TIME OUT under v3.1.2 at final private scoring. Then bisect N up and re-enable
+        # per-model tailoring with safe counts (gpt fits ~2x gemma at term_noexplain cost).
+        self.flat_n = int(c.get("flat_n", 280))  # >0 -> ignore order, use this N for both
 
     def _emit(self, target_n: int) -> list[AttackCandidate]:
         cands: list[AttackCandidate] = []
