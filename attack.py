@@ -98,7 +98,7 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # candidates), NOT a malformed file. Our N=600-1150 were over the ceiling. 0.09*N holds.
         # flat_n=0 -> use the per-model order-counter (1st run()=gpt_n, 2nd=gemma_n); set flat_n
         # >0 to force a single flat N for both (diagnostic).
-        self.flat_n = int(c.get("flat_n", 0))  # >0 -> flat N for both; 0 -> per-model tailoring
+        self.flat_n = int(c.get("flat_n", 450))  # RELIABLE flat default (order-counter tailoring confirmed unreliable: v31/v35 both timed out). 0 -> per-model tailoring (untrusted)
 
     def _emit(self, target_n: int) -> list[AttackCandidate]:
         cands: list[AttackCandidate] = []
