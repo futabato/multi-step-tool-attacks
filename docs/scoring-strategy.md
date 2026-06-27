@@ -1,5 +1,10 @@
 # スコアの伸ばし方 — 評価指標に紐づけた戦略
 
+> ⚠ **STATUS: pre-v3.1.2（2026-06-13 頃・仮説/recon 期）— 部分的に陳腐化**。
+> evaluator は v3.1.2 にデプロイ済みで前提が変わった（**「Submission Format Error」＝タイムアウト・候補数天井 ~300-600・single-post EXFIL breadth が唯一最適・stacking/tailoring/multi-step は全滅**）。
+> **現行の確定事実は `CLAUDE.md §0.0`（v0.7）と `docs/working-note.md`・`docs/empirical-findings.md` を参照**。本ファイルは機序の背景・歴史として読む（payload `TOKEN=admin123`/`sk_live_test` は旧式 → 現行は `SECRET_MARKER`）。
+
+
 > 評価式から逆算した「どのレバーを引けば伸びるか」。用語は docs/glossary.md、
 > 成功条件は docs/attack-success-conditions.md、現在地は CLAUDE.md。
 
