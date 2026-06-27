@@ -84,30 +84,21 @@ class AttackAlgorithm(AttackAlgorithmBase):
     def __init__(self, config: Mapping[str, Any] | None = None) -> None:
         super().__init__(config)
         c = self.config
-        # Per-model N ceilings (term_noexplain, from connect's confirmed N=640 pass: gpt 0.43x
-        # -> ~1488, gemma 0.93x -> ~688). v28 (gpt_n=1300) failed TWICE on the SAME code with
-        # DIFFERENT modes (ERROR + COMPLETE-blank) = infra flakiness, but the blank is a replay
-        # timeout. So v28.1 is EXTRA conservative: gpt_n=1150 (77% of ~1488 -> big timeout
-        # margin even if infra is slow) + gemma_n=660 (< ~688). Expected public = mean(0.09*1150,
-        # 0.09*660) = mean(103.5, 59.4) ~= 81.5 — still a huge jump from 57.6, prioritizing a
-        # SUCCESS that proves detection-over-RPC + mean-aggregation + tailoring. Then bump.
-        self.gpt_n = min(int(c.get("gpt_n", 1150)), 2000)
-        self.gemma_n = min(int(c.get("gemma_n", 660)), 2000)
+        # v29.4 per-model tailoring with SAFE counts (confirmed v3.1.2 data: 0.09*N holds —
+        # N=280->25.2, N=600->54.0; gemma reliable ceiling ~450-500, 600 is variance). single
+        # _exfil costs gpt 6.4s vs gemma 13.6s/cand -> gpt fits ~2.1x. So gemma_n=440 (reliable)
+        # + gpt_n=920 (~2.1x, also safe) -> mean(0.09*920, 0.09*440)=mean(82.8,39.6)~=61.
+        self.gpt_n = min(int(c.get("gpt_n", 920)), 2000)
+        self.gemma_n = min(int(c.get("gemma_n", 440)), 2000)
         self.deputy_quota = int(c.get("deputy_quota", 0))  # of the per-model N; rest is exfil
         # Optional overrides: force a model ("gpt_oss"/"gemma") or a flat N for both models.
         self.force_model = str(c.get("force_model", "") or "")
-        # v29.3 ROOT CAUSE FOUND (pilkwang forum post, 2026-06-27): "Submission Format Error"
-        # since the v3.1.2 update (06-22) is NOT a malformed file — it's a TIMEOUT. The enforced
-        # 9,000 s/phase budget + tight GPU caps the replay at the LOW HUNDREDS of candidates:
-        # pilkwang gets a clean 27.0 at N=300 and reliable format-errors (timeouts) at N>=400.
-        # Our N=600-1150 were all 2-4x over the ceiling -> all timed out -> all "Format Error"
-        # (our stub/env/order-counter hypotheses were all wrong). 0.09*N still holds (0.09*300
-        # =27.0). So: FLAT N=280 (safely under pilkwang's 300-works/400-fails; our term_noexplain
-        # may be cheaper so we can bisect up after this confirms). Expected ~25. This also gives
-        # us a v3.1.2-COMPLETING submission, which matters because the stale 57.6 (N=640) will
-        # likely TIME OUT under v3.1.2 at final private scoring. Then bisect N up and re-enable
-        # per-model tailoring with safe counts (gpt fits ~2x gemma at term_noexplain cost).
-        self.flat_n = int(c.get("flat_n", 280))  # >0 -> ignore order, use this N for both
+        # ROOT CAUSE of the 06-22+ blank streak (pilkwang forum 06-27): "Submission Format
+        # Error" under v3.1.2 = TIMEOUT (9,000 s/phase enforced; replay caps at low hundreds of
+        # candidates), NOT a malformed file. Our N=600-1150 were over the ceiling. 0.09*N holds.
+        # flat_n=0 -> use the per-model order-counter (1st run()=gpt_n, 2nd=gemma_n); set flat_n
+        # >0 to force a single flat N for both (diagnostic).
+        self.flat_n = int(c.get("flat_n", 0))  # >0 -> flat N for both; 0 -> per-model tailoring
 
     def _emit(self, target_n: int) -> list[AttackCandidate]:
         cands: list[AttackCandidate] = []
