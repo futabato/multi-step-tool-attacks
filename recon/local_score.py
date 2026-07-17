@@ -33,6 +33,7 @@ import dataclasses
 import importlib.util
 import json
 import os
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -1457,7 +1458,7 @@ def _prefix_cache_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, rep
             rest = dts[1:] or dts
             seq = " ".join("%.1f" % x for x in dts[:10])
             print(f"\n  [{name}] fired={fires}/{reps}")
-            print(f"    cand1={dts[0]:5.1f}s  rest: median={_median(rest):5.1f}s min={min(rest):5.1f}s")
+            print(f"    cand1={dts[0]:5.1f}s  rest: median={statistics.median(rest):5.1f}s min={min(rest):5.1f}s")
             print(f"    seq(s)= {seq}")
         print("\n  READ: distinct_mid median ~= our host single-post cost (no cross-cand reuse of the URL).")
         print("  If identical/shared median is MUCH lower (cache hit), restructure attack.py to emit a")
