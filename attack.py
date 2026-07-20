@@ -164,7 +164,11 @@ class AttackAlgorithm(AttackAlgorithmBase):
         self.deputy_frac = max(0.0, min(float(c.get("deputy_frac", DEPUTY_FRAC)), 0.9))
         self.destructive_n = max(0, int(c.get("destructive_n", DESTRUCTIVE_N)))
         self.promote_ratio = float(c.get("promote_ratio", PROMOTE_RATIO))
-        self.use_triple = bool(c.get("triple", True))
+        self.use_triple = bool(c.get("triple", False))  # DISABLED: v44 triple fires 0 on gpt
+                                                          # (local score=0, host V44=6.9). single
+                                                          # sk_live_test works (gemma proved it).
+                                                          # Re-enable only after the triple firing
+                                                          # is fixed. Ship = V43 private portfolio.
         self.deputy_quota = int(c.get("deputy_quota", 0))     # exact-emit only (tests)
         self.fallback_n = int(c.get("fallback_n", 280))
         self.max_n = min(int(c.get("max_n", MAX_REPLAY_FINDINGS)), MAX_REPLAY_FINDINGS)
