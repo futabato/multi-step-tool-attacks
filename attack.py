@@ -119,7 +119,7 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "measured"
+DEFAULT_FILL_MODE = "blind"  # V52 blind-fill experiment (Codex H4 packing lever, blind_frac=1.15). Flip back to "measured" for the safe V51 fallback.
 
 # Fill safety: keep the RETURNED set's measured replay cost <= FILL_FRAC * budget so the
 # separate replay phase (fresh budget) fits with margin. 0.90 = pilkwang's proven-safe value.
