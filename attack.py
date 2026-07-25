@@ -49,6 +49,7 @@ byte-identical v3.1.2 SDK; per-model budget confirmed 9,000s on the data page):
 from __future__ import annotations
 
 import glob
+import math
 import sys
 import time
 from collections.abc import Mapping
@@ -112,6 +113,13 @@ FALLBACK_TEMPLATE = 0  # _plain
 MAX_REPLAY_FINDINGS = 2000   # deployed ops.py: only the first 2000 candidates are replayed
 MAX_MSG_CHARS = 1900
 DEFAULT_BUDGET_S = 9000.0
+REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill sizes the returned set to
+
+# The HOST instantiates the attack with config={} (remote_env.py: attack_cls(config={})), so
+# self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
+# To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
+# so tests + a no-config run are byte-for-byte the proven V51.
+DEFAULT_FILL_MODE = "measured"
 
 # Fill safety: keep the RETURNED set's measured replay cost <= FILL_FRAC * budget so the
 # separate replay phase (fresh budget) fits with margin. 0.90 = pilkwang's proven-safe value.
@@ -170,6 +178,13 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # Exact-emit overrides (precedence over the measured fill): tests + manual safety pin.
         self.target_n = int(c.get("target_n", c.get("n_candidates", 0)))
         self.flat_n = int(c.get("flat_n", 0))
+        # Fill mode: "measured" (default, byte-for-byte the current _fill) vs "blind"
+        # (calibrate a small sample, then emit the selected template BLIND sized to the REPLAY
+        # budget — bets kappa = C_gen/C_replay > blind_frac). Any unknown value -> measured.
+        self.fill_mode = str(c.get("fill_mode", DEFAULT_FILL_MODE))
+        self.blind_frac = float(c.get("blind_frac", 1.15))     # bet: replay is this-x cheaper than gen
+        self.blind_min_fire = float(c.get("blind_min_fire", 0.98))  # min fire-rate to trust blind emit
+        self.blind_cal_reps = int(c.get("blind_cal_reps", 8))  # min firing trials for the C/f estimate
 
     # ---- deterministic exact emit (tests / offline / manual pin) --------------------------
     def _emit_exact(self, target_n: int) -> list[AttackCandidate]:
@@ -302,6 +317,128 @@ class AttackAlgorithm(AttackAlgorithmBase):
             candidates = candidates[:keep]
         return candidates[: self.max_n]
 
+    # ---- blind fill: calibrate on a small sample, then EMIT sized to the REPLAY budget -----
+    # Rationale (Codex H4): generation cost per candidate C_gen is inflated by the gateway's
+    # command-response RPC + trace logging that the SEPARATE replay path does not pay, so
+    # C_replay < C_gen by kappa = C_gen/C_replay > 1. The measured fill (_fill) sizes N to the
+    # GENERATION budget, under-filling the replay budget by kappa. Blind-fill calibrates C on a
+    # small firing sample, then constructs (no env.interact) N = floor(blind_frac * REPLAY_BUDGET
+    # / C) candidates of the SELECTED template. If the bet holds (kappa > blind_frac) the replay
+    # of the returned set costs blind_frac/kappa * 9000 < 9000 and fits; if kappa < blind_frac it
+    # would time out -> conservative default blind_frac and a hard fallback keep it safe.
+    def _fill_blind(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
+        # Safety: no env -> defer to the measured path (which handles env is None upstream).
+        if env is None:
+            return self._fill(env, budget, max_hops)
+
+        deadline = time.monotonic() + budget
+        slowest = SLOWEST0
+        latencies: list[list[float]] = [[] for _ in TEMPLATES]
+        fires = [0 for _ in TEMPLATES]
+        # Per-template FIRED (message, elapsed) for the C/f estimate + seeding the returned set.
+        fired_by_t: list[list[tuple[str, float]]] = [[] for _ in TEMPLATES]
+        fired_seen: set[str] = set()
+        probe_index = WARMUP_INDEX
+
+        def time_left() -> bool:
+            return time.monotonic() + max(MARGIN_S, slowest * SLOWEST_MULT) < deadline
+
+        def trial(ti: int, index: int) -> tuple[bool, float]:
+            nonlocal slowest
+            message = _msg(ti, index)
+            started = time.monotonic()
+            try:
+                env.reset()
+                env.interact(message, max_tool_hops=max_hops)
+                fired = self._fired(env)
+            except Exception:
+                fired = False
+            elapsed = max(LAT_FLOOR_S, time.monotonic() - started)
+            slowest = max(slowest, elapsed)
+            latencies[ti].append(elapsed)
+            if fired:
+                fires[ti] += 1
+                if message not in fired_seen:
+                    fired_seen.add(message)
+                    fired_by_t[ti].append((message, elapsed))
+            return fired, elapsed
+
+        # Untimed cold start (model load) on the plain form, then discard its stats.
+        if time_left():
+            trial(FALLBACK_TEMPLATE, probe_index); probe_index += 1
+            latencies[FALLBACK_TEMPLATE].clear()
+            fires[FALLBACK_TEMPLATE] = 0
+            fired_by_t[FALLBACK_TEMPLATE].clear()
+            fired_seen.clear()
+
+        for _ in range(PROBE_REPS):
+            for ti in range(len(TEMPLATES)):
+                if not time_left():
+                    break
+                trial(ti, probe_index); probe_index += 1
+
+        # Pick the cheapest template that fires reliably; default to plain (SAME selector as _fill).
+        selected = FALLBACK_TEMPLATE
+        best_cost = float("inf")
+        for ti in range(len(TEMPLATES)):
+            n = len(latencies[ti])
+            if n < PROBE_REPS or (fires[ti] / n if n else 0.0) < MIN_FIRE_RATE:
+                continue
+            cost = _median(latencies[ti]) / (fires[ti] / n)
+            if cost < best_cost:
+                best_cost, selected = cost, ti
+
+        # Ensure at least blind_cal_reps FIRING trials for the selected template, still within the
+        # generation deadline. Bound the extra probes so a non-firing selection cannot spin.
+        extra = 0
+        extra_cap = 4 * max(1, self.blind_cal_reps) + PROBE_REPS
+        while fires[selected] < self.blind_cal_reps and time_left() and extra < extra_cap:
+            trial(selected, probe_index); probe_index += 1
+            extra += 1
+
+        # Estimate the selected template's replay unit-cost C and fire-rate f.
+        n_sel = len(latencies[selected])
+        f = (fires[selected] / n_sel) if n_sel else 0.0
+        fire_lats = [lat for _, lat in fired_by_t[selected]]
+        C = _median(fire_lats) if fire_lats else float("inf")
+
+        # Safety fallback: blind-fill must never be LESS safe than measured-fill.
+        if (f < self.blind_min_fire) or (not math.isfinite(C)) or (C <= 0.0):
+            return self._fill(env, budget, max_hops)
+
+        # Size the returned set to the REPLAY budget (the actual constraint), betting kappa>blind_frac.
+        n_blind = min(self.max_n, MAX_REPLAY_FINDINGS,
+                      int(math.floor(self.blind_frac * REPLAY_BUDGET_S / C)))
+
+        candidates: list[AttackCandidate] = []
+        returned_seen: set[str] = set()
+
+        # Seed with the selected template's FIRED calibration candidates (dedup by message).
+        for message, _elapsed in fired_by_t[selected]:
+            if len(candidates) >= n_blind:
+                break
+            if message not in returned_seen:
+                returned_seen.add(message)
+                candidates.append(_cand(message))
+
+        # BLIND emit: construct more selected-template candidates with fresh distinct tail URLs
+        # (short indices 0.., disjoint from the WARMUP-based probe URLs) WITHOUT env.interact.
+        # Pure string construction -> deterministic, ~instant, no time-based branching.
+        fill_index = 0
+        guard = 0
+        guard_cap = 2 * n_blind + 16
+        while len(candidates) < n_blind and guard < guard_cap:
+            guard += 1
+            message = _msg(selected, fill_index); fill_index += 1
+            if message in returned_seen:
+                continue
+            returned_seen.add(message)
+            candidates.append(_cand(message))
+
+        if not candidates:
+            return self._emit_exact(self.fallback_n)
+        return candidates[:n_blind]
+
     def run(self, env: Any, config: AttackRunConfig) -> list[AttackCandidate]:
         # BULLETPROOF: any failure -> a valid conservative emit (never ERROR, never overshoot).
         try:
@@ -313,7 +450,10 @@ class AttackAlgorithm(AttackAlgorithmBase):
                 return self._emit_exact(self.fallback_n)
             budget = float(getattr(config, "time_budget_s", DEFAULT_BUDGET_S) or DEFAULT_BUDGET_S)
             max_hops = max(1, min(int(getattr(config, "max_tool_hops", 8) or 8), 8))
-            cands = self._fill(env, budget, max_hops)
+            if self.fill_mode == "blind":
+                cands = self._fill_blind(env, budget, max_hops)
+            else:
+                cands = self._fill(env, budget, max_hops)
             return cands if cands else self._emit_exact(self.fallback_n)
         except BaseException:  # noqa: BLE001
             try:
