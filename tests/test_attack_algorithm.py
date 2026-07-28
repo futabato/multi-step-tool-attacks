@@ -278,14 +278,13 @@ def test_continuation_mode_falls_back_to_single_post_when_no_chain():
         assert not c.user_messages[0].startswith(_TERSE_PREFIX), "fallback must be single-post"
 
 
-def test_default_mode_stays_single_post_not_continuation():
-    # Default (no fill_mode) is the proven single-post fill: never emits terse_loop candidates.
+def test_measured_mode_stays_single_post_not_continuation():
+    # The measured fill is the proven single-post fill: never emits terse_loop candidates.
     # (On PlainOnlyFireEnv the measured selector is deterministic -> _plain single-post shape.)
-    default = _load()({"max_n": 25}).run(PlainOnlyFireEnv(), _BIG)
+    # Pin fill_mode explicitly so this holds regardless of DEFAULT_FILL_MODE (which may ship as
+    # "portfolio"); the invariant tested is a property of the MEASURED mode, not the default value.
     measured = _load()({"fill_mode": "measured", "max_n": 25}).run(PlainOnlyFireEnv(), _BIG)
-    assert [c.user_messages for c in default] == [c.user_messages for c in measured], \
-        "default fill_mode must be byte-for-byte the measured fill"
-    for c in default:
+    for c in measured:
         m = c.user_messages[0]
         assert not m.startswith(_TERSE_PREFIX), "default mode must not emit terse_loop candidates"
         assert m.startswith(_PLAIN_PREFIX), "default mode is single-post _plain here"
@@ -336,9 +335,10 @@ def test_portfolio_respects_custom_fracs_and_caps():
     assert all(_shape(m) == "exfil" for m in msgs), "all-exfil fracs -> only exfil shapes"
 
 
-def test_default_mode_emits_no_destructive_shapes():
-    # Default (measured) mode must NEVER emit a DESTRUCTIVE_WRITE (secret.txt) candidate.
-    cands = _load()({"max_n": 25}).run(PlainOnlyFireEnv(), _BIG)
+def test_measured_mode_emits_no_destructive_shapes():
+    # The measured (single-post) mode must NEVER emit a DESTRUCTIVE_WRITE (secret.txt) candidate.
+    # Pinned explicitly so it's independent of DEFAULT_FILL_MODE.
+    cands = _load()({"fill_mode": "measured", "max_n": 25}).run(PlainOnlyFireEnv(), _BIG)
     for c in cands:
         assert "/secret.txt" not in c.user_messages[0], "measured mode must not emit destructive shapes"
         assert _shape(c.user_messages[0]) != "destructive"
