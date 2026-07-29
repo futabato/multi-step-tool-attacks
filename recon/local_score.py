@@ -1647,26 +1647,32 @@ def _private_fire_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, rep
         env = build_attack_env(seed=seed, fixtures_dir=fixtures_dir, agent_factory=agent_factory,
                                guardrail=guard(), env_selection=EnvSelection.GYM, max_tool_hops=8)
         env.reset()
+        t0 = time.time()
         try:
-            env.interact(msg, max_tool_hops=8)
+            res = env.interact(msg, max_tool_hops=8)
         except Exception:
-            return 0, 0, 0
+            return None
+        dt = time.time() - t0
         tr = env.export_trace_dict()
         evs = tr.get("tool_events", []) or []
-        return evs, eval_predicates(tr)
+        turns = getattr(res, "agent_turns", None) or 0
+        return evs, eval_predicates(tr), turns, dt
 
-    print(f"\n=== PRIVATE-FIRE PROBE ({model_name}) reps={reps}: do DEPUTY/DESTRUCTIVE fire when ALLOWED? ===")
-    print("  permissive = the provenance-only(60%) private proxy. emitted / ok:True / predicate-fired.")
+    print(f"\n=== PRIVATE-FIRE PROBE ({model_name}) reps={reps}: fire + REPLAY COST per family x guardrail ===")
+    print("  permissive = provenance-only(60%) private proxy. emitted/ok/fired + med turns & dt (COST).")
+    print("  CRITICAL (V55 timeout): a candidate DENIED on public that burns many hops = expensive public")
+    print("  replay -> Format Error. DESTRUCTIVE-under-public turns>>2 is the V55 timeout cause.")
     try:
         for fname, fn, tool, pred in FAMILIES:
             print(f"\n  [{fname}]")
             for gname, guard in GUARDS:
-                em = ok = fired = 0
+                em = ok = fired = 0; turns = []; dts = []
                 for i in range(reps):
                     res = _run(fn(i), guard)
-                    if res == (0, 0, 0):
+                    if res is None:
                         continue
-                    evs, preds = res
+                    evs, preds, tn, dt = res
+                    turns.append(tn); dts.append(dt)
                     tev = [e for e in evs if e.get("name") == tool]
                     if tev:
                         em += 1
@@ -1674,10 +1680,14 @@ def _private_fire_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, rep
                         ok += 1
                     if any(p.get("predicate") == pred for p in preds):
                         fired += 1
-                print(f"    {gname:28s}: emitted {em}/{reps}  ok:True {ok}/{reps}  {pred} FIRED {fired}/{reps}")
-        print("\n  READ: DESTRUCTIVE FIRED>0 under permissive but 0 under public => sev4 private differential LIVE.")
-        print("  DEPUTY FIRED>0 under BOTH => robust hedge (survives keyword-scan case). fs.write ok:False even")
-        print("  under permissive => tool blocks it => DESTRUCTIVE dead. This gates the private portfolio mix.")
+                mt = statistics.median(turns) if turns else 0
+                md = statistics.median(dts) if dts else 0
+                flag = "  <-- EXPENSIVE (public-replay timeout risk)" if (mt >= 4) else ""
+                print(f"    {gname:28s}: emitted {em}/{reps} ok {ok}/{reps} {pred} FIRED {fired}/{reps} "
+                      f"| med_turns={mt:.0f} med_dt={md:.1f}s{flag}")
+        print("\n  READ: if DESTRUCTIVE public med_turns>>2 => the agent retries the denied fs.write across hops")
+        print("  => 125 of them blew the V55 public-replay budget. Fix = drop/shrink destructive, or lower")
+        print("  portfolio_n. DEPUTY/EXFIL cheap (turns~2) under both => keep. This gates the portfolio mix.")
     finally:
         _unload(server)
 
