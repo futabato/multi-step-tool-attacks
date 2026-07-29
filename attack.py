@@ -119,7 +119,7 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "portfolio"  # V55 private channel-hedge (exfil/deputy/destructive 250/125/125, flat 500). Flip to "measured" for the safe single-post V51.
+DEFAULT_FILL_MODE = "measured"  # V55 portfolio(flat500,125 destructive)=Format Error: destructive DENIED on public replay likely burns hops -> public-phase timeout. Diagnosing; reverted to safe measured.
 
 # Portfolio (private-hedge) EXACT emit: a fixed, conservative, UNMEASURED blend of three channels
 # (EXFILTRATION / CONFUSED_DEPUTY / DESTRUCTIVE_WRITE) so that whichever channel the unknown
