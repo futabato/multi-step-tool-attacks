@@ -119,7 +119,7 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "measured"  # V55 portfolio(flat500,125 destructive)=Format Error: destructive DENIED on public replay likely burns hops -> public-phase timeout. Diagnosing; reverted to safe measured.
+DEFAULT_FILL_MODE = "portfolio"  # V56 private channel-hedge, portfolio_n=400 (margin). Flip to "measured" for safe single-post V51.
 
 # Portfolio (private-hedge) EXACT emit: a fixed, conservative, UNMEASURED blend of three channels
 # (EXFILTRATION / CONFUSED_DEPUTY / DESTRUCTIVE_WRITE) so that whichever channel the unknown
@@ -127,7 +127,7 @@ DEFAULT_FILL_MODE = "measured"  # V55 portfolio(flat500,125 destructive)=Format 
 # so this does NOT maximize EXFIL throughput — it diversifies for private coverage. Ships only by
 # flipping DEFAULT_FILL_MODE to "portfolio"; the host instantiates with config={} so portfolio_n
 # also needs a module-constant default.
-DEFAULT_PORTFOLIO_N = 500
+DEFAULT_PORTFOLIO_N = 400  # V56: 400 (was 500) — margin vs host replay variance (V55 flat500=Format Error; probe showed candidates are cheap ~2 turns, so likely variance not cost)
 
 # Fill safety: keep the RETURNED set's measured replay cost <= FILL_FRAC * budget so the
 # separate replay phase (fresh budget) fits with margin. 0.90 = pilkwang's proven-safe value.
