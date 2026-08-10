@@ -19,6 +19,16 @@ agents = [
     "transformers>=4.30.0",
     "openai>=1.0.0",
 ]
+# GGUF path used by recon/local_score.py probes (--cost-probe, --gemma-latency, --inspect,
+# score mode). The GgufModelServer lazily imports `llama_cpp` at MODEL-LOAD time, so imports
+# succeed without it but any probe that loads a model needs it. For GPU offload (--n-gpu-layers)
+# install a CUDA build: prefer the prebuilt wheels matching your CUDA, e.g.
+#   UV_EXTRA_INDEX_URL=https://abetlen.github.io/llama-cpp-python/whl/cu124 uv sync --extra gpu
+# or build from source:  CMAKE_ARGS="-DGGML_CUDA=on" uv pip install llama-cpp-python
+# The plain PyPI wheel below is CPU-only (works but ignores --n-gpu-layers; slow).
+gpu = [
+    "llama-cpp-python>=0.3.0",
+]
 
 [dependency-groups]
 dev = [
