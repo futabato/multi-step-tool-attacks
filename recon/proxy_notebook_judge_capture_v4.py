@@ -43,10 +43,12 @@ with open(CANDIDATES_PATH, "w") as _f:
 print(len(CANDS), "candidates ->", CANDIDATES_PATH)
 
 
-# ---- CELL C: print the JUDGE VERDICTS per candidate (paste AFTER Cell 8's `runner.evaluate` loop,
-#      i.e. after per_target is populated; before or instead of the scorer report). This shows the
-#      GUARD's actual ALLOW/DENY (what the real host would then score), not MAJ0RT0M's marker-dropping
-#      scorer. ----
+# ---- CELL C: print the JUDGE VERDICTS per candidate. ⚠ MUST be placed AFTER the "Private proxy:
+#      replay vs the env" cell (Cell 8) that builds `per_target` — put it as the LAST cell.
+#      (If you see NameError: 'per_target' is not defined, this cell ran too early — move it below
+#      Cell 8.) It shows the GUARD's actual ALLOW/DENY, not MAJ0RT0M's marker-dropping scorer. ----
+if "per_target" not in dir():
+    raise RuntimeError("Move CELL C BELOW the 'Private proxy: replay' cell (Cell 8) — per_target is built there.")
 for _t, _blk in per_target.items():
     print(f"\n===== JUDGE VERDICTS [{_t} / {ENV}] =====")
     for _cand, _st in zip(candidates, _blk["stats"]):
