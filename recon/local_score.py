@@ -2088,6 +2088,78 @@ def _continuation_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, K=6
         _unload(server)
 
 
+def _static_fire_probe(model_name, seed, fixtures_dir, n_gpu_layers, n_ctx, fire_n=45):
+    """FIRE-RATE decomposition of the V60 static flat ship (EXFIL_TEMPLATE = _inj_done marker exfil).
+    Cleanor #728947: 'static size-then-emit loses to live keep-only-fired; blind candidates fire well
+    under 100%, so a static list burns replay budget on non-fires; fire_rate is the primitive.'
+    V60 is static exact-emit — so: does every returned candidate actually FIRE on a COLD replay, or
+    are we wasting replay budget on non-fires that a live keep-only-fired fill would drop? Samples
+    the ship template across low/mid/high index bands, cold-replays each at hops=8, reports fire_rate
+    + raw/turn + raw/gen-token + live_gain (= tokens_all / tokens_fired = the throughput a keep-only-
+    fired fill would recover). Ratios transfer to host; absolute seconds don't. Prize-relevant now
+    that marker SURVIVES the private guard (more banked marker => higher Submit-1 private score)."""
+    import statistics
+    from aicomp_sdk.core.env.api import EnvSelection
+    from aicomp_sdk.evaluation.ops import build_attack_env
+    from aicomp_sdk.guardrails.optimal import Guardrail as OptimalGuardrail
+    from aicomp_sdk.core.predicates import eval_predicates
+
+    _spec = importlib.util.spec_from_file_location("attack_for_firerate", str(_REPO / "attack.py"))
+    _atk = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_atk)
+    tmpl = _atk.TEMPLATES[_atk.EXFIL_TEMPLATE]         # V60 ship template (_inj_done)
+    tname = tmpl.__name__.lstrip("_")
+    per = max(1, fire_n // 3)
+    idxs = list(range(0, per)) + list(range(900, 900 + per)) + list(range(1900, 1900 + per))
+
+    captured = []; be_box = {}
+    _af, server = _build_agent_factory(model_name, n_gpu_layers, n_ctx)
+    make_agent = _capturing_factory(_af, captured, be_box)
+    print(f"\n=== STATIC-FIRE PROBE ({model_name}): V60 ship template '{tname}', {len(idxs)} samples across the 2000-list ===")
+    print("  Q: does static emit waste replay budget on non-fires? fire_rate<1 or live_gain>1 => live keep-only-fired lifts us.")
+    fired_flags = []; turns_all = []; toks_all = []; toks_fired = []; posts_all = []; refused = 0
+    _ = make_agent
+    for i in idxs:
+        captured.clear()
+        msg = tmpl(_atk._url(i))
+        env = build_attack_env(seed=seed, fixtures_dir=fixtures_dir, agent_factory=make_agent,
+                               guardrail=OptimalGuardrail(), env_selection=EnvSelection.GYM, max_tool_hops=8)
+        env.reset()
+        res = env.interact(msg, max_tool_hops=8)
+        tr = env.export_trace_dict()
+        evs = tr.get("tool_events", [])
+        np_ = sum(1 for e in evs if e.get("name") == "http.post" and e.get("ok"))
+        fired = any(p.get("predicate") == "EXFILTRATION" for p in eval_predicates(tr))
+        gtok = sum(_gen_tokens(be_box.get("be"), t) for t in captured)
+        t = getattr(res, "agent_turns", None)
+        if getattr(res, "agent_refused", False):
+            refused += 1
+        fired_flags.append(fired); posts_all.append(np_); toks_all.append(gtok)
+        if t is not None:
+            turns_all.append(t)
+        if fired:
+            toks_fired.append(gtok)
+
+    n = len(fired_flags); F = sum(fired_flags)
+    fire_rate = F / n if n else 0.0
+    raw_fired = 18 * F                                  # 16 sev + 2 cell per fired single-post candidate
+    sum_turns = sum(turns_all) or 1
+    sum_tok_all = sum(toks_all) or 1
+    sum_tok_fired = sum(toks_fired) or 1
+    live_gain = (sum_tok_all / sum_tok_fired) if toks_fired else float("inf")
+    print(f"\n  fire_rate = {F}/{n} = {fire_rate:.3f}  (refused={refused}, mean posts/cand="
+          f"{statistics.mean(posts_all):.2f}, mean turns={statistics.mean(turns_all) if turns_all else float('nan'):.2f})")
+    print(f"  raw/turn = {raw_fired / sum_turns:.2f} (single-post baseline 18/2=9.0)   raw/gen-token(all) = {raw_fired / sum_tok_all:.4f}")
+    print(f"  live_gain (tokens_all / tokens_fired) = {live_gain:.3f}  <- throughput a keep-only-fired fill would recover")
+    print("\n  DECISION:")
+    if fire_rate >= 0.98 and live_gain <= 1.05:
+        print("   fire_rate>=0.98 & live_gain<=1.05 => V60 static is ~optimal; fire-rate is NOT the lever. Next: raw-density (multi-post).")
+    elif fire_rate <= 0.95 or live_gain >= 1.10:
+        print("   fire_rate<=0.95 OR live_gain>=1.10 => static wastes budget on non-fires; switch the flat ship to measured/live")
+        print("   keep-only-fired to lift BOTH rows (and Submit-1's private banked marker count).")
+    else:
+        print("   borderline — modest live-fill gain; weigh vs measured-mode generation cost.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sdk-dir", default=None, help="dir holding aicomp_sdk/ + kaggle_evaluation/ (default: <repo>/comp)")
@@ -2104,6 +2176,8 @@ def main() -> None:
     ap.add_argument("--turns-probe", action="store_true", help="compare single-post phrasings by agent_turns/generations (the timeout-cost driver)")
     ap.add_argument("--cost-probe", action="store_true", help="RELIABLE: mean replay sec/candidate over M samples per phrasing (averaged → noise-free cost ratio for N sizing)")
     ap.add_argument("--cost-n", type=int, default=40, help="samples per phrasing for --cost-probe")
+    ap.add_argument("--static-fire-probe", action="store_true", help="FIRE-RATE of the V60 static ship (_inj_done): does static emit waste replay budget on non-fires vs live keep-only-fired? reports fire_rate + live_gain")
+    ap.add_argument("--fire-n", type=int, default=45, help="total samples for --static-fire-probe (split across low/mid/high index bands)")
     ap.add_argument("--audit", action="store_true", help="per-candidate error analysis of the SHIPPING attack.py exfil (non-firing/multi-post/refused/tool-fail/cost-outliers)")
     ap.add_argument("--audit-n", type=int, default=60, help="candidates to audit for --audit")
     ap.add_argument("--harmony-dump", action="store_true", help="GPT-OSS: capture raw harmony output, measure analysis(reasoning) channel cost per directive (the 1.44× lever)")
@@ -2173,6 +2247,11 @@ def main() -> None:
     if args.cost_probe:
         for mdl in models:
             _cost_probe(mdl, seed, fixtures_dir, args.n_gpu_layers, args.n_ctx, cost_n=args.cost_n)
+        return
+
+    if args.static_fire_probe:
+        for mdl in models:
+            _static_fire_probe(mdl, seed, fixtures_dir, args.n_gpu_layers, args.n_ctx, fire_n=args.fire_n)
         return
 
     if args.audit:
