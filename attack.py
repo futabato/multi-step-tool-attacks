@@ -163,7 +163,7 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_k2"  # V62: per-model cheapest-firing single-post template, then exact-emit
+DEFAULT_FILL_MODE = "adaptive_kn"  # V62: per-model cheapest-firing single-post template, then exact-emit
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
 # V60's gemma row was under-banked. "adaptive" probes THIS model in run() (called once per model) and

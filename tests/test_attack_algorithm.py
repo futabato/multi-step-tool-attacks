@@ -138,7 +138,7 @@ def test_adaptive_is_the_shipped_default():
     template -> exact-emit the cap). On FakeEnv (both templates fire 1 post, no agent_turns signal)
     adaptive still exact-emits the full 2000 cap of single-post candidates."""
     import attack as _mod
-    assert _mod.DEFAULT_FILL_MODE == "adaptive_k2"
+    assert _mod.DEFAULT_FILL_MODE == "adaptive_kn"
     assert _mod.DEFAULT_FLAT_N == _mod.MAX_REPLAY_FINDINGS
     cands = _load()({}).run(FakeEnv(), _BIG)  # empty config == host path
     assert len(cands) == _mod.MAX_REPLAY_FINDINGS
