@@ -169,9 +169,11 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_k3"  # V65 test: K=3 gpt burst (reuses _burst2's winning phrasing at K=3).
-# Fallback if V65 regresses: adaptive_k2 (=91.585, proven best, path kept byte-identical). K=2 WON,
-# K=4/6 tanked (V64=54.37); K=3 is the one untested point. Degrade-safe (probe picks single if K=3 loses).
+DEFAULT_FILL_MODE = "packed"  # V66: multi-message packing (M single-post EXFIL msgs/candidate ->
+# M*16 raw, amortizing the system+tool-specs prefill via within-candidate KV reuse). The untested-by-us
+# lever matching the 130-137 frontier; degrade-safe (floor ~= single-post ~88). K-tuning is EXHAUSTED:
+# K=2 (adaptive_k2) = 91.585 PEAK, K=3 (adaptive_k3, V65) = 90.545 (worse), K=4/6 (V64) = 54.37 tanked.
+# Proven fallback if packed regresses: adaptive_k2 (=91.585, path kept byte-identical).
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
 # V60's gemma row was under-banked. "adaptive" probes THIS model in run() (called once per model) and
@@ -491,8 +493,11 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # _replay_candidate_trace resets the env once/candidate then interacts all M messages on the
         # same env -> M posts in one trace -> M*16 raw, amortizing the fixed system+tool-specs prefill
         # (F) over M via llama-cpp within-candidate prefix-KV reuse. Clamp to [2, 16] (n_ctx=8192 vs
-        # accumulating history; "M=32 crashes runtime"). See memory multimessage-packing-lever.
-        self.pack_m = max(2, min(int(c.get("pack_m", 6)), 16))
+        # accumulating history; "M=32 crashes runtime"). DEFAULT M=4 = the FIRST probe: bounded
+        # downside if within-candidate KV reuse does NOT hold on the host (then prefill is ~O(M^2) ->
+        # ~59-88 regress, not catastrophic), clear directional signal (gain -> reuse works, push M).
+        # See memory multimessage-packing-lever.
+        self.pack_m = max(2, min(int(c.get("pack_m", 4)), 16))
 
     # ---- deterministic exact emit (tests / offline / manual pin) --------------------------
     def _emit_exact(self, target_n: int) -> list[AttackCandidate]:
