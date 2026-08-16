@@ -2348,16 +2348,25 @@ def main() -> None:
     if args.gemma_path:
         os.environ["GEMMA_MODEL_PATH"] = args.gemma_path
 
-    from kaggle_evaluation.jed_attack_134815 import jed_attack_gateway as gw
-    budget = args.budget if args.budget is not None else float(gw.DEFAULT_BUDGET_S)
-    seed = args.seed if args.seed is not None else int(gw.ATTACK_SEED)
+    # gw (full gateway) drags in grpc/pyarrow etc.; the GPU probes (cost/turns/fanout) don't
+    # need it. Fall back to the known host constants when the gateway deps are absent so a
+    # probe-only machine can still run.
+    try:
+        from kaggle_evaluation.jed_attack_134815 import jed_attack_gateway as gw
+        _GW = {"budget": float(gw.DEFAULT_BUDGET_S), "seed": int(gw.ATTACK_SEED),
+               "hops": gw.DEFAULT_MAX_TOOL_HOPS, "env": gw.ENV_SELECTION, "models": list(gw.MODEL_NAMES)}
+    except ModuleNotFoundError as e:
+        print(f"[warn] gateway import failed ({e}); using known host constants (probe-only mode).")
+        _GW = {"budget": 9000.0, "seed": 123, "hops": 8, "env": "GYM", "models": ["gpt_oss", "gemma"]}
+    budget = args.budget if args.budget is not None else _GW["budget"]
+    seed = args.seed if args.seed is not None else _GW["seed"]
     fixtures_dir = Path(_bootstrap_sdk(args.sdk_dir)) / "aicomp_sdk" / "fixtures"
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     artifacts = Path(args.out)
 
     print(json.dumps({
-        "host_matched": {"budget_s": budget, "seed": seed, "hops": gw.DEFAULT_MAX_TOOL_HOPS,
-                          "env": gw.ENV_SELECTION, "gateway_models": list(gw.MODEL_NAMES)},
+        "host_matched": {"budget_s": budget, "seed": seed, "hops": _GW["hops"],
+                          "env": _GW["env"], "gateway_models": _GW["models"]},
         "run": {"attack": args.attack, "models": models, "n_gpu_layers": args.n_gpu_layers, "fixtures": str(fixtures_dir)},
     }, indent=2))
     if args.check:
