@@ -134,15 +134,14 @@ def test_flat_mode_ships_full_cap_distinct_single_post_exfil():
 
 
 def test_adaptive_is_the_shipped_default():
-    """The module default (host instantiates with config={}) is V66 packed (probe per-model cheapest
-    single-post template -> exact-emit the cap of M-message candidates). On FakeEnv the packed fill
-    still exact-emits the full 2000 cap of candidates (each carrying pack_m messages)."""
+    """The module default (host instantiates with config={}) is adaptive_k2 (V63 = 91.585, the proven
+    peak; K=3/packed/final-forge all measured worse or dead). On FakeEnv adaptive_k2 exact-emits the
+    full 2000 cap (gpt-like -> _burst2 shape; here both single templates fire so it still fills 2000)."""
     import attack as _mod
-    assert _mod.DEFAULT_FILL_MODE == "packed"
+    assert _mod.DEFAULT_FILL_MODE == "adaptive_k2"
     assert _mod.DEFAULT_FLAT_N == _mod.MAX_REPLAY_FINDINGS
     cands = _load()({}).run(FakeEnv(), _BIG)  # empty config == host path
     assert len(cands) == _mod.MAX_REPLAY_FINDINGS
-    assert all(len(c.user_messages) == _load()({}).pack_m for c in cands), "default packs pack_m msgs"
 
 
 def test_flat_n_config_overrides_default_cap():
