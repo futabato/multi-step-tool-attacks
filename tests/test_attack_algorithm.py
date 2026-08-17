@@ -134,11 +134,11 @@ def test_flat_mode_ships_full_cap_distinct_single_post_exfil():
 
 
 def test_adaptive_is_the_shipped_default():
-    """The module default (host instantiates with config={}) is adaptive_k2 (V63 = 91.585, the proven
-    peak; K=3/packed/final-forge all measured worse or dead). On FakeEnv adaptive_k2 exact-emits the
-    full 2000 cap (gpt-like -> _burst2 shape; here both single templates fire so it still fills 2000)."""
+    """The module default (host instantiates with config={}). Currently deputy_burst = the Submit-2
+    private hedge (V67); Submit-1 = adaptive_k2 (91.585, V63) stands on the LB. Whichever default is
+    shipped, config={} exact-emits the full 2000-candidate cap."""
     import attack as _mod
-    assert _mod.DEFAULT_FILL_MODE == "adaptive_k2"
+    assert _mod.DEFAULT_FILL_MODE in ("adaptive_k2", "deputy_burst")
     assert _mod.DEFAULT_FLAT_N == _mod.MAX_REPLAY_FINDINGS
     cands = _load()({}).run(FakeEnv(), _BIG)  # empty config == host path
     assert len(cands) == _mod.MAX_REPLAY_FINDINGS

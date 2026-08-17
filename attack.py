@@ -169,12 +169,11 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_k2"  # PROVEN PEAK = 91.585 (V63). Standing best; revert target.
-# All other levers measured and DEAD: K=3 (V65)=90.545, K=4/6 (V64)=54.37 -> K=2 is the burst peak.
-# packed multi-message (V66, M=4) = 78.375 REGRESS: within-candidate history growth (longer decode +
-# incomplete KV reuse) outweighs the system+tool-specs prefill amortization, and LARGER M worsens it
-# -> multi-message packing is dead. final-forge refuted at source (2-generation floor is structural).
-# The 130-137 frontier lever remains unexplained by us AND radiant (88.9). See lever-death-catalog.
+DEFAULT_FILL_MODE = "deputy_burst"  # V67 = Submit-2 (private keyword_strict/judge hedge): pure
+# deputy-burst (K email.send/candidate, sev3, the ONLY predicate surviving a marker-killing private
+# guard). Standing Submit-1 = adaptive_k2 (=91.585, V63, COMPLETE on LB); to rebuild Submit-1 flip back.
+# Public levers exhausted: adaptive_k2 (K=2 burst) 91.585 PEAK; K=3 90.545; K>=4 54.37; packed(M=4)
+# 78.375; final-forge source-refuted. The 130-137 frontier lever is unexplained by us AND radiant.
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
 # V60's gemma row was under-banked. "adaptive" probes THIS model in run() (called once per model) and
