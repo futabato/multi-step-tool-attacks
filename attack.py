@@ -169,13 +169,12 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_exfil_wall"  # V71 = improved Submit-1 (①③ EXFIL, the P~0.9 prize path):
-# per-model multi-post EXFIL by raw/wall — gpt -> _burst2 (K=2 forge, proven 91.585); gemma ->
-# _exfil_numbered (NUMBERED list, the format that makes GEMMA cross-hop chain: probe k8->3.75 posts,
-# +20-25% on gemma's BINDING row — radiant's "gemma multi-post negative" was a format artifact). Both
-# rows now multi-post -> aims to lift adaptive_k2's 91.585 toward the ~100 frontier. Fallbacks:
-# adaptive_k2 (V63, 91.585 EXFIL) and deputy_adaptive_wall (V70, 24.615 ② hedge) both stand as prior
-# COMPLETE submissions; flip DEFAULT back to rebuild either.
+DEFAULT_FILL_MODE = "adaptive_k2"  # Submit-1 = PROVEN PEAK 91.585 (V63). adaptive_exfil_wall (V71,
+# gemma numbered chaining) REGRESSED to 76.865: gemma DOES cross-hop chain (numbered scales k8->3.75
+# posts, radiant was format-wrong) BUT the probe's raw/wall did NOT transfer — the host per-hop wall
+# cost exceeds the T4 probe's, and gpt likely picked forge-less numbered (CoT tax) -> gpt row tanked.
+# Multi-hop EXFIL is probe-positive / host-negative (same as V66 packing 78.4). gpt K=2 burst is the
+# only EXFIL multi-post that transfers. Submit-2 = deputy_adaptive_wall (V70, 24.615); flip to rebuild.
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
 # V60's gemma row was under-banked. "adaptive" probes THIS model in run() (called once per model) and
