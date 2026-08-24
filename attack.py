@@ -169,13 +169,13 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_exfil_wall"  # V72 = improved Submit-1: per-model wall-optimal EXFIL —
-# gpt -> _burst2 (K=2 forge, proven 91.585); gemma -> _exfil_oneword (single + one-word terminal "reply
-# OK only", the DEPUTY turn-2 lever applied to EXFIL: probe gemma raw/wall 6.46 vs forge 4.58 = +41%,
-# SINGLE-post so it transfers unlike V71's numbered chaining). Lifts the binding gemma EXFIL row toward
-# the ~100 ①③ frontier. V71 (numbered chaining) regressed 76.865 — multi-hop is host-negative; this is
-# NOT chaining, just a faster turn-2. Fallbacks stand: adaptive_k2 (V63, 91.585), deputy_adaptive_wall
-# (V70, 24.615). If V72 regresses, flip DEFAULT back to adaptive_k2.
+DEFAULT_FILL_MODE = "adaptive_k2"  # Submit-1 = PROVEN PEAK 91.585 (V63). Both adaptive_exfil_wall
+# attempts REGRESSED: V71 (gemma numbered chaining) = 76.865, V72 (gemma one-word terminal) = 75.090.
+# The T4 probe's raw/wall does NOT transfer to the host for EXFIL — mixing burst2(2-post) with a
+# 1-post shape destabilizes the wall-based selection (host likely gave gpt the forge-less oneword ->
+# gpt row tanked below single). deputy_adaptive_wall (V70) worked because its two shapes were both
+# single (clean latency compare). EXFIL wall-optimization is probe-positive / host-negative. Barbell:
+# Submit-1 = adaptive_k2 (V63, 91.585), Submit-2 = deputy_adaptive_wall (V70, 24.615).
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
 # V60's gemma row was under-banked. "adaptive" probes THIS model in run() (called once per model) and
