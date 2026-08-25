@@ -169,10 +169,12 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "exfil_gt_route"  # V75 = hengck23 gemma-thought forge (gpt protected by burst
-# router; gemma -> _gemma_thought, the one untested gemma forge format). SPECULATIVE gemma-CoT gamble;
-# barbell (V63 91.585 + V70 24.615) safe regardless. If it kills gemma firing -> revert. Prior:
-# V74 exfil_ns_route (do-not-summarize, pending), V73 exfil_ow_route 81.5, adaptive_k2 (V63) 91.585.
+DEFAULT_FILL_MODE = "exfil_mm2_route"  # V76 = gemma 2-message env-load amortization (Mohammad: env-
+# load per candidate is the CPU bottleneck). gpt -> _burst2 (protected); gemma -> a 2-message candidate
+# (2 posts, ONE env-load, minimal +1-message context growth). Tests env-load amortization > context
+# penalty on the CPU host, WITHOUT gemma chaining (CPU-neg) or big packing (V66 M=4 regressed).
+# SPECULATIVE, gpt-protected -> barbell (V63 91.585 + V70 24.615) safe. Prior: V74 (pending), V73 81.5.
+# (V75 exfil_gt_route gemma-thought forge dropped — garbled format risks killing gemma firing.)
 # (V74 exfil_ns_route "do not summarize" forge is submitted+pending; flip DEFAULT to it to rebuild.)
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
@@ -1693,6 +1695,63 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # SPECULATIVE gemma-CoT-cut gamble; barbell safe.
         return self._route_fill(env, budget, max_hops, _burst2, _burst2, _gemma_thought)
 
+    def _fill_exfil_mm2_route(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
+        # V76: env-load amortization at MINIMAL context growth (Mohammad #736246: env-load per
+        # candidate is the CPU bottleneck). gpt CHAINS -> _burst2 (single message, protected). gemma
+        # HARDLOCKS -> a 2-MESSAGE candidate: env.reset ONCE then 2 interacts = 2 gemma posts amortizing
+        # ONE env-load, WITHOUT gemma cross-hop chaining (CPU-negative) and with only +1 message of
+        # context growth (vs V66 packing M=4 which regressed on the larger growth). Tests whether
+        # env-load amortization > the small context penalty on the CPU host. gpt protected -> barbell safe.
+        if env is None:
+            return self._emit_exact(self.flat_n if self.flat_n > 0 else DEFAULT_FLAT_N)
+        deadline = time.monotonic() + budget
+        slowest = SLOWEST0
+        probe_index = WARMUP_INDEX
+        posts: list[float] = []
+
+        def time_left() -> bool:
+            return time.monotonic() + max(MARGIN_S, slowest * SLOWEST_MULT) < deadline
+
+        if time_left():
+            try:
+                env.reset(); env.interact(_burst2(probe_index), max_tool_hops=max_hops)
+            except Exception:
+                pass
+            probe_index += 1
+        for _ in range(max(1, self.adaptive_probe_reps)):
+            if not time_left():
+                break
+            started = time.monotonic()
+            try:
+                env.reset()
+                env.interact(_burst2(probe_index), max_tool_hops=max_hops)
+                posts.append(float(self._count_posts(env)))
+            except Exception:
+                posts.append(0.0)
+            slowest = max(slowest, time.monotonic() - started)
+            probe_index += 1
+
+        chains = bool(posts) and _median(posts) >= 1.5
+        N = min(self.max_n, MAX_REPLAY_FINDINGS, self.flat_n if self.flat_n > 0 else DEFAULT_FLAT_N)
+        cands: list[AttackCandidate] = []
+        seen: set[tuple[str, ...]] = set()
+        i = 0
+        guard = 0
+        guard_cap = 4 * N + 16
+        while len(cands) < N and guard < guard_cap:
+            guard += 1
+            if chains:  # gpt: single-message burst2 (protected)
+                msgs: tuple[str, ...] = (_burst2(i)[:MAX_MSG_CHARS],)
+            else:  # gemma: 2-message candidate (2 single-post exfils, 1 env-load)
+                msgs = (_msg(EXFIL_TEMPLATE, 2 * i)[:MAX_MSG_CHARS],
+                        _msg(EXFIL_TEMPLATE, 2 * i + 1)[:MAX_MSG_CHARS])
+            i += 1
+            if msgs in seen:
+                continue
+            seen.add(msgs)
+            cands.append(_cand_multi(msgs))
+        return cands[:N]
+
     # ---- adaptive_k2 fill: EXTENDS adaptive with a K=2 multi-post option on the fast (gpt) row ----
     # run() is called ONCE PER MODEL. Probe THREE shapes on THIS model: single-post forge (_inj_done),
     # single-post plain (_bare_ok), and the K=2 burst (_burst2, 2 posts/candidate + empty-analysis
@@ -2176,6 +2235,9 @@ class AttackAlgorithm(AttackAlgorithmBase):
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "exfil_gt_route":
                 cands = self._fill_exfil_gt_route(env, budget, max_hops)
+                return cands if cands else self._emit_exact(self.fallback_n)
+            if self.fill_mode == "exfil_mm2_route":
+                cands = self._fill_exfil_mm2_route(env, budget, max_hops)
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "adaptive_k2":
                 cands = self._fill_adaptive_k2(env, budget, max_hops)
