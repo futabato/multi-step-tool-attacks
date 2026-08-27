@@ -169,7 +169,10 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "adaptive_k2"  # PROVEN CPU-TRANSFERABLE EXFIL CEILING = 91.585 (V63). The EXFIL
+DEFAULT_FILL_MODE = "deputy_adaptive_wall"  # V79 = Submit-2 (deputy ② hedge, V70=24.615) REBUILT
+# with the V78 gemma-GPU-fit notebook patch (build_submission serve path patches the model SPEC, orthogonal
+# to attack.py). If V78 confirms gemma was CPU-fallback-bound, the deputy row (also gemma-bound) speeds up
+# too -> Submit-2 > 24.615. Submit-1 candidate = adaptive_k2 (V63 91.585 / V78 patched). Original EXFIL note: The EXFIL
 # CPU probe (n_gpu_layers=0 = host env) confirmed gpt _burst2+forge optimal (single_bare 3x slower =
 # forge essential) and gemma stuck at 1 post; forcing gemma->burst2 (V77 flat_burst2) = 74.665
 # (regressed: gemma does NOT chain burst2 on host; the CPU-probe 1.5 was a kernel-CPU artifact). 10
