@@ -169,12 +169,12 @@ REPLAY_BUDGET_S = 9000.0  # the SEPARATE per-model replay budget blind-fill size
 # self.config is EMPTY on the host and fill_mode CANNOT be set via config at submission time.
 # To ship a blind-fill submission, flip this module constant to "blind"; default stays "measured"
 # so tests + a no-config run are byte-for-byte the proven V51.
-DEFAULT_FILL_MODE = "flat_burst2"  # V77 = FORCE _burst2 on both models (no probe). The transferable
-# CPU probe showed gemma burst2 = 1.5 posts, raw/wall +28% vs single, but adaptive_k2's host probe
-# picked gemma->single (host gemma burst2 ~1.0). This resolves the 1.0-vs-1.5 gemma-chaining ambiguity:
-# gemma chains on host -> +28% gemma row -> Submit-1 > 91.585; else ~flat. gpt burst2 = adaptive_k2's
-# gpt (safe). Prior EXFIL mods all regressed (V71-76: 76.9/75.1/81.5/75.5/79.4). Barbell: V63 (91.585)
-# + V70 (24.615). Revert to adaptive_k2 if V77 regresses.
+DEFAULT_FILL_MODE = "adaptive_k2"  # PROVEN CPU-TRANSFERABLE EXFIL CEILING = 91.585 (V63). The EXFIL
+# CPU probe (n_gpu_layers=0 = host env) confirmed gpt _burst2+forge optimal (single_bare 3x slower =
+# forge essential) and gemma stuck at 1 post; forcing gemma->burst2 (V77 flat_burst2) = 74.665
+# (regressed: gemma does NOT chain burst2 on host; the CPU-probe 1.5 was a kernel-CPU artifact). 10
+# EXFIL mods all regressed (V64/V66/V71-74/V76/V77). EXFIL is exhaustively maxed. Barbell FINAL:
+# Submit-1 = adaptive_k2 (V63, 91.585), Submit-2 = deputy_adaptive_wall (V70, 24.615).
 # (V74 exfil_ns_route "do not summarize" forge is submitted+pending; flip DEFAULT to it to rebuild.)
 # the cap. V60 flat used _inj_done (harmony forge) for BOTH models = 83.385 (rank ~788/1319, just
 # BELOW the ~700-team 84-90 wall). The forge is ~12% SLOWER on gemma than _bare_ok (cost-probe), so
