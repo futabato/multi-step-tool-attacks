@@ -141,7 +141,7 @@ def test_adaptive_is_the_shipped_default():
     assert _mod.DEFAULT_FILL_MODE in ("adaptive_k2", "deputy_burst", "adaptive_deputy", "deputy_fast",
                                       "deputy_adaptive_wall", "adaptive_exfil_wall", "exfil_ow_route",
                                       "exfil_ns_route", "exfil_gt_route", "exfil_mm2_route", "flat_burst2",
-                                      "adaptive_pending")
+                                      "adaptive_pending", "exfil_bare_route")
     assert _mod.DEFAULT_FLAT_N == _mod.MAX_REPLAY_FINDINGS
     cands = _load()({}).run(FakeEnv(), _BIG)  # empty config == host path
     assert len(cands) == _mod.MAX_REPLAY_FINDINGS
@@ -757,6 +757,20 @@ def test_adaptive_pending_degrades_to_single_on_hardlock():
     msgs = [c.user_messages[0] for c in cands]
     for m in msgs:
         assert "PENDING_AFTER_OK" not in m, "hardlock env must NOT emit the pending shape (degrade)"
+
+
+def test_exfil_bare_route_uses_pure_bare_on_gemma():
+    # souldrive throughput lever: gemma (hardlock) -> pure _bare (shortest, NO terminal / NO forge).
+    n_cap = 25
+    cands = _load()({"fill_mode": "exfil_bare_route", "max_n": n_cap}).run(GemmaHardlockEnv(), _BIG)
+    assert len(cands) == n_cap, f"exfil_bare_route must exact-emit max_n={n_cap}, got {len(cands)}"
+    for c in cands:
+        m = c.user_messages[0]
+        assert m.startswith("http.post url=") and m.endswith(" now."), f"gemma must get pure _bare: {m!r}"
+        assert "reply OK" not in m and "<|" not in m, "pure _bare carries no terminal and no forge"
+        # each still fires EXFIL on replay (SECRET_MARKER in data).
+        env = GemmaHardlockEnv(); env.reset(); env.interact(m)
+        assert eval_predicates(env.export_trace_dict()), "pure _bare candidate must fire EXFIL"
 
 
 def test_adaptive_k2_picks_single_bare_ok_on_gemma_hardlock_env():
