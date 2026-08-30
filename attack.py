@@ -1724,6 +1724,16 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # V73: gpt chains -> _burst2 (protected); gemma -> _exfil_oneword (one-word terminal, +41% probe).
         return self._route_fill(env, budget, max_hops, _burst2, _burst2, _exfil_oneword)
 
+    def _fill_exfil_wall_route(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
+        # V91 (replay-cost oracle): the oracle measured, on the CPU host, gemma inj_done = raw/WALL 1.22-1.42
+        # (1 post, 12.7-14.7s) vs gemma burst2 = 0.91 (1.5 post, 26.5s). But adaptive_k2 SELECTS by raw/TURN,
+        # where gemma burst2 (26/2.5=10.4) beats inj_done (18/2=9.0) -> adaptive_k2 picks the SLOWER burst2
+        # for gemma. Turn-count under-counts burst2's true decode cost on the decode-bound host. This route
+        # forces the oracle-optimal per-model wall shapes: gpt chains -> _burst2 (its raw/wall 1.331 IS best),
+        # gemma hardlock -> _inj_done (raw/wall best). Lifts the binding gemma row ~1.35x if the mis-pick was
+        # real on the host. gpt never gets _inj_done (protected). Downside floored at gemma-single.
+        return self._route_fill(env, budget, max_hops, _burst2, _burst2, lambda i: _inj_done(_url(i)))
+
     def _fill_exfil_shell_route(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
         # V90 (Codex #2): gpt chains -> _burst2 (protected 91.585 path); gemma (hardlock) -> _shell_plan
         # (tool-result-resident 7-post continuation plan). Untested public-derived lever. Downside floored
@@ -2429,6 +2439,9 @@ class AttackAlgorithm(AttackAlgorithmBase):
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "adaptive_exfil_wall":
                 cands = self._fill_adaptive_exfil_wall(env, budget, max_hops)
+                return cands if cands else self._emit_exact(self.fallback_n)
+            if self.fill_mode == "exfil_wall_route":
+                cands = self._fill_exfil_wall_route(env, budget, max_hops)
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "exfil_shell_route":
                 cands = self._fill_exfil_shell_route(env, budget, max_hops)
