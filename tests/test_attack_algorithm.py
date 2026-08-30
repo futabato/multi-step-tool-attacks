@@ -142,7 +142,7 @@ def test_adaptive_is_the_shipped_default():
                                       "deputy_adaptive_wall", "adaptive_exfil_wall", "exfil_ow_route",
                                       "exfil_ns_route", "exfil_gt_route", "exfil_mm2_route", "flat_burst2",
                                       "adaptive_pending", "exfil_bare_route", "exfil_shell_route",
-                                      "exfil_wall_route", "exfil_numbered_route")
+                                      "exfil_wall_route", "exfil_numbered_route", "exfil_numbered8_route")
     assert _mod.DEFAULT_FLAT_N == _mod.MAX_REPLAY_FINDINGS
     cands = _load()({}).run(FakeEnv(), _BIG)  # empty config == host path
     assert len(cands) == _mod.MAX_REPLAY_FINDINGS

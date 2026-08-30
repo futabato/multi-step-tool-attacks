@@ -1732,7 +1732,12 @@ class AttackAlgorithm(AttackAlgorithmBase):
         # CoT tax on gpt); gemma hardlock -> _exfil_numbered(.,3). If the 2-post count transfers to the
         # host, the binding gemma row lifts ~1.3-1.9x. Downside floored at gemma-single. V71 forced numbered
         # on BOTH models (killed gpt -> 76.9); this protects gpt, so it's a genuinely new A/B.
-        return self._route_fill(env, budget, max_hops, _burst2, _burst2, lambda i: _exfil_numbered(i, 3))
+        # K-sweep oracle (V93): gemma num_k5 = 3 posts (avg 3.00, raw/wall 1.123 > burst2 1.048); k3 only 2.
+        return self._route_fill(env, budget, max_hops, _burst2, _burst2, lambda i: _exfil_numbered(i, 5))
+
+    def _fill_exfil_numbered8_route(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
+        # V94 sibling at K=8: gemma num_k8 also 3 posts (raw/wall 1.107) — a variance alternative to K=5.
+        return self._route_fill(env, budget, max_hops, _burst2, _burst2, lambda i: _exfil_numbered(i, 8))
 
     def _fill_exfil_wall_route(self, env: Any, budget: float, max_hops: int) -> list[AttackCandidate]:
         # V91 (replay-cost oracle): the oracle measured, on the CPU host, gemma inj_done = raw/WALL 1.22-1.42
@@ -2452,6 +2457,9 @@ class AttackAlgorithm(AttackAlgorithmBase):
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "exfil_numbered_route":
                 cands = self._fill_exfil_numbered_route(env, budget, max_hops)
+                return cands if cands else self._emit_exact(self.fallback_n)
+            if self.fill_mode == "exfil_numbered8_route":
+                cands = self._fill_exfil_numbered8_route(env, budget, max_hops)
                 return cands if cands else self._emit_exact(self.fallback_n)
             if self.fill_mode == "exfil_wall_route":
                 cands = self._fill_exfil_wall_route(env, budget, max_hops)
