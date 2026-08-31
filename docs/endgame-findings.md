@@ -38,6 +38,27 @@ shapes 62-77s = CoT tax); one-word/dot terminal is essential for gemma (cuts tur
 (deputy_adaptive_wall = gpt fast_forge / gemma oneword) is at the deputy optimum; no meaningful lift.**
 Both arms are now measurement-confirmed maxed (EXFIL 91.585, deputy V84) — the barbell is earned, not assumed.
 
+## PER-ROW breakdown of 91.585 (2026-08-31, recon/perrow_local_score_cell.py) — the puzzle resolved
+The 100+ public frontier made the user (rightly) suspect our "18/candidate structural ceiling" was missing
+something. Ran the SDK's own `evaluate_redteam` per model (public guardrail, adaptive_k2, max_n=40, CPU) to
+break down the mean. Results (both fire 100% = 40/40, cells = findings = 40 = cell-maxed):
+- **gpt_public: raw/finding = 34** (= 2-post burst2), ~30.3s/candidate.
+- **gemma_public: raw/finding = 18** (= 1-post single), ~20.4s/candidate.
+Extrapolating to the budget that makes the mean = 91.585 (budget ≈ 18,000s, matching the Overview number):
+**gpt_public ≈ 101, gemma_public ≈ 79 (the BINDING row), mean ≈ 90-91.6.** Aggregation = MEAN (confirmed:
+local_score per-model matched the LB for v7 37.8=37.800; sum would double it).
+
+Resolution of the frontier puzzle: BOTH rows are structurally capped for us. gpt ≈ 101 (burst2 optimal;
+burst3/numbered measured worse). gemma ≈ 79 (1-post cap is source-airtight — normalize_parsed_response
+raises on >1 tool_call; wall floored at inj_done per the oracle). fire is 100%, cells are maxed, raw/candidate
+is exactly the theoretical 34/18 — nothing is being left on the table. To reach the 147 mean the frontier needs
+BOTH rows ≈ 147, i.e. gemma ≈ 1.86× its 79 — impossible without gemma multi-post (source-forbidden) or a
+1.86× faster gemma (wall-floored). So 91.585 IS our structural ceiling; the 147 teams have something on the
+gemma row that our faithful SDK reading + measurement cannot reproduce (a different gemma path, or an anomaly).
+Not a missed lever — the gemma 1-post cap is the absolute wall. (Note: local evaluate_redteam RAISES on budget
+overrun; the host gateway _replay_and_score is more forgiving (grace + kernel-wall). Same SDK v3.1.2, different
+entrypoint; they agree for within-budget submissions, so the max_n=40 per-row is faithful.)
+
 ## Private-axis intel (the prize)
 - Gateway names the private guardrail `aicomp_private_guardrails.persistent_provenance` (provenance-based; held-out, not shipped locally). Source-primary evidence → world ① (marker survives) most likely.
 - Independent corroboration of our exact thesis (marker fragile vs payload-inspecting guardrail / deputy robust): hexisteme #737535, **S.M Hadi Rizvi #738226** ("marker-exfiltration is structurally fragile against any guardrail that inspects payload content ... CONFUSED_DEPUTY is comparatively robust").
