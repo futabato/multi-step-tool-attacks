@@ -29,6 +29,15 @@ Findings the oracle got WRONG (raw/wall does NOT fully predict host score — th
 ## Public levers — exhaustively dead (measured or source-proven)
 single-post breadth 91.585 (BEST) · burst K=3 90.5 · K≥4 dead(parser) · packing 78.4 · one-word 81.5 · do-not-summarize forge 75.5 · pending-continuation 78.6 · shell-plan(Codex#2) 54.0 · bare-imperative 80.7 · severity-density 44.8 · continuation/per-model-N timeout · dual-T4 88.4 · wall-route 84.67 · numbered k3/k5/k8 79/83/78 · mccocoful native dead · UNTRUSTED/DESTRUCTIVE public structurally blocked.
 
+## Deputy replay-cost oracle (2026-08-31, recon/deputy_cost_oracle_cell.py) — Submit-2 CHECKED, already ~maxed
+The deputy is the likely decisive private arm (shakeup), and it was never oracle-optimized (the deputy
+grind predated the oracle). Measured on CPU: gpt best = done_forge 13.6s vs V84's fast_forge 13.7s (tie);
+gemma best = dot_term 15.9s vs V84's oneword 16.1s (tie). Differences 0.1-0.2s = measurement noise, and
+per the V91 lesson a marginal oracle edge does not survive the host. Forge is essential for gpt (non-forge
+shapes 62-77s = CoT tax); one-word/dot terminal is essential for gemma (cuts turn-2). **V84
+(deputy_adaptive_wall = gpt fast_forge / gemma oneword) is at the deputy optimum; no meaningful lift.**
+Both arms are now measurement-confirmed maxed (EXFIL 91.585, deputy V84) — the barbell is earned, not assumed.
+
 ## Private-axis intel (the prize)
 - Gateway names the private guardrail `aicomp_private_guardrails.persistent_provenance` (provenance-based; held-out, not shipped locally). Source-primary evidence → world ① (marker survives) most likely.
 - Independent corroboration of our exact thesis (marker fragile vs payload-inspecting guardrail / deputy robust): hexisteme #737535, **S.M Hadi Rizvi #738226** ("marker-exfiltration is structurally fragile against any guardrail that inspects payload content ... CONFUSED_DEPUTY is comparatively robust").
