@@ -5,7 +5,7 @@
 > Deadline: **Final Submission 2026-09-01 23:59 UTC**. Scoring queue is ~15-18h (confirmed: ryan panda
 > #712642 "took 18 hours"), so submissions made after ~08-31 midday may not score before the deadline.
 
-## FINAL DECISION — barbell, lock manually before 2026-09-01
+## FINAL DECISION — barbell, LOCKED (confirmed by user 2026-08-31)
 - **Submit-1 = V63, ref `55510504`** — adaptive_k2 EXFIL, public **91.585** (unbeaten ceiling). Wins private world ① (pure_provenance, marker survives) + ③ (judge/DLP).
 - **Submit-2 = V84, ref `55820079`** — deputy_adaptive_wall, public **25.155**. Wins world ② (payload-inspecting/strict private, where marker-exfil self-cancels). CONFUSED_DEPUTY is the unique robust survivor.
 - ⚠ MUST select manually (My Submissions): default picks the 2 highest-PUBLIC = two EXFILs = loses the deputy hedge. Deputy's public 25 is far below the auto-threshold.
