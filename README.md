@@ -5,26 +5,27 @@ Attacks](https://www.kaggle.com/competitions/ai-agent-security-multi-step-tool-a
 ($50,000). The deliverable is `attack.py`: a coverage-guided **indirect
 prompt-injection search policy** that drives a fixed agent (GPT-OSS / Gemma)
 through user messages so it makes predicate-triggering tool calls that survive a
-guardrail, maximizing distinct score **cells**. There is no training and no
-prediction.
+guardrail, maximizing distinct score **cells**. There is no model to train: the
+entry is a search that emits attack candidates.
 
 ## Result
 
 | | public | private (the prize) |
 |---|--:|--:|
-| **exfil arm** (marker throughput) | **91.585** | **0.000** |
-| **deputy arm** (unauthorized `email.send`) | 25.155 | **25.185** ← our score |
+| **exfiltration submission** (marker throughput) | **91.585** | **0.000** |
+| **confused-deputy submission** (unauthorized `email.send`) | 25.155 | **25.185** ← our score |
 
 The private rerun runs the same candidates against a **held-out** guardrail. The
-public score was a mirage: our high-throughput exfil arm scored **0** on private,
-along with **2,885 other teams**. The submission that carried us — an attack that
-reads no data and leaks no secret — transferred almost exactly (**25.155 →
-25.185**). Selecting it by hand, rather than letting auto-select keep our two
-highest *public* scores, was the decisive move.
+public score did not carry over: our high-throughput exfiltration submission scored
+**0** on private, along with **2,885 other teams**. The submission that carried us —
+an attack that reads no data and leaks no secret — transferred almost exactly
+(**25.155 → 25.185**). Selecting it by hand, rather than letting auto-select keep
+our two highest *public* scores, was the decisive move.
 
-**[SOLUTION.md](SOLUTION.md)** is the write-up (paper format): how we reduced the
-public game to one equation, routed a prompt per model, predicted both scores
-offline, and hedged. 日本語版は **[SOLUTION_ja.md](SOLUTION_ja.md)**。
+**[SOLUTION.md](SOLUTION.md)** is the write-up (paper format): reproducing the
+public score offline, routing a prompt per model, and predicting offline which
+attack would transfer to the held-out guardrail. 日本語版は
+**[SOLUTION_ja.md](SOLUTION_ja.md)**。
 
 ## Layout
 
@@ -39,7 +40,7 @@ docs/           # Research notes and surveys (QD/Go-Explore, reward hacking, IPI
 notebooks/      # Submission packaging (build_submission.py, kernel metadata).
 tests/          # Deterministic tests for the attack policy and our reading of the oracle.
 external/       # Submodule: a community proxy for the private eval (aduriseti).
-SOLUTION.md     # The write-up.
+SOLUTION.md     # The write-up (SOLUTION_ja.md is the Japanese version).
 ```
 
 ## Reproduce
