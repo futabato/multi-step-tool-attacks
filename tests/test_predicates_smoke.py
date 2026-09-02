@@ -1,4 +1,4 @@
-"""Smoke tests pinning our reading of the scoring oracle (CLAUDE.md §2/§3).
+"""Smoke tests pinning our reading of the scoring oracle (SOLUTION.md).
 
 Uses SYNTHETIC traces (no agent / no torch) to lock the predicate firing
 conditions and cell-signature behavior. The full Stage 0 gate (driving

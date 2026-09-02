@@ -1,9 +1,9 @@
-"""Per-predicate seed user-messages (CLAUDE.md §9).
+"""Per-predicate seed user-messages (SOLUTION.md).
 
 STARTING points for the search. The attack is INDIRECT: the user message is
 benign-looking and the agent is steered by untrusted content it reads (files /
 emails / web). Where a predicate requires the ABSENCE of an intent word
-(send/email/upload/run/execute/save/write — CLAUDE.md §3), the seed avoids it so
+(send/email/upload/run/execute/save/write — SOLUTION.md), the seed avoids it so
 the predicate is not suppressed as "user-authorized".
 """
 from __future__ import annotations

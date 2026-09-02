@@ -1,10 +1,10 @@
-"""Deterministic local search harness (skeleton, CLAUDE.md §5/§13).
+"""Deterministic local search harness (skeleton, SOLUTION.md).
 
 Drives `env.interact(...)` with seed/mutated user messages, observes the trace,
 verifies findings locally (attacklib.verify), and fills a CellArchive. Go-Explore
 branching uses env.snapshot()/restore(). Control flow is LLM-free; the only
 stochastic part is the target agent, which must be seeded / temperature-0 for
-replay determinism (CLAUDE.md §6).
+replay determinism (SOLUTION.md).
 
 Building a real `env` that drives GPT-OSS/Gemma needs the [agents] extra (torch)
 and a GPU. For logic development without a model, construct synthetic traces (see

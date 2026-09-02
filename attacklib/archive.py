@@ -1,4 +1,4 @@
-"""Cell archive for coverage-guided search (Go-Explore / MAP-Elites, CLAUDE.md §2/§13).
+"""Cell archive for coverage-guided search (Go-Explore / MAP-Elites, SOLUTION.md).
 
 Keyed by the score-driving cell hash. Stores, per cell, the user-message chain
 that reached it and the predicates/severity it triggered. New cell, or higher

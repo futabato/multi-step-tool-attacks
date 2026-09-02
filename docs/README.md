@@ -1,7 +1,7 @@
 # docs/ — 知識ベース インデックス
 
-> 本コンペ「AI Agent Security: Multi-Step Tool Attacks」の白箱知見・戦略・用語の索引。
-> プロジェクト全体の留意点は repo ルートの `CLAUDE.md`（living spec）が一次。
+> 本コンペ「AI Agent Security: Multi-Step Tool Attacks」の白箱知見・研究・用語の索引。
+> 最終的な解法と結果は repo ルートの [`SOLUTION.md`](../SOLUTION.md) を参照。
 
 ---
 
@@ -34,7 +34,6 @@
 | [reward-hacking_survey.md](reward-hacking_survey.md) | RL/事後学習由来の reward-hacking 攻撃仮説（一次ソース vs 推論を分離） | サーベイ・仮説 |
 | [multi-step-tool-attacks_survey.md](multi-step-tool-attacks_survey.md) | 攻略のための技術・研究・ガイドライン総覧 | サーベイ |
 | [ipi-format-injection-research.md](ipi-format-injection-research.md) | DeepResearch 統合：format/構造注入(ChatInject)・provenance 防御(CaMeL は user 指示を信頼=marker-in-message を通す)・egress filter 設計・AgentDojo/InjecAgent・攻撃↔防御マッピング | 外部文献 |
-| [empirical-findings.md](empirical-findings.md) | 提出系列 v1→v8 の実測ログ、timeout 3機序の真因（出力トークン数）、multi-endpoint がモデルで死ぬ、local_score オラクル、55.8 メタ分解＋各防御示唆 | **確定（実測）** |
 
 ---
 
@@ -54,9 +53,8 @@
 
 ---
 
-## 現状（随時更新 / 2026-06-18）
-- LB best：**v7 = 37.800**（予測 37.8 と完全一致＝local_score オラクル検証）。v8（N=750 純 exfil）採点中、予測 ~60。
-- 提出系列・失敗機序・メタ分解は [empirical-findings.md](empirical-findings.md) に一次データとして確定。
-- 確立した方法論：**`recon/local_score.py` でホスト実スコアをローカル測定 → 予測 → 提出**（盲目提出をやめる）。
-- 公開 LB の本質：得点 ≈ 0.09×N（9h に詰める発火単発候補数）。multi-endpoint はモデルが高 K で multi-post せず不成立。
-- SDK 監査：一巡（guardrail/predicate/cells/scoring/env/tools/agents/parsers/hooks/real_attack_detection）。
+## 最終結果と方法論
+- 最終 private スコア **25.185**（deputy アーム）。public の marker-exfil は private で 0。詳細は [`SOLUTION.md`](../SOLUTION.md)。
+- 確立した方法論：**`recon/local_score.py` でホスト実スコアをローカル測定 → 予測 → 提出**（盲目提出をやめる）。予測 37.8 が実測 37.800 と完全一致。
+- 公開 LB の本質：得点 ≈ 0.09×N（発火する単発候補数）。
+- SDK 監査：一巡（guardrail/predicate/cells/scoring/env/tools/agents/parsers/hooks）。

@@ -1,6 +1,6 @@
 # recon/ — offline white-box recon (LLM allowed)
 
-Per CLAUDE.md §5/§7: recon is **offline, white-box, may use an attacker LLM**, and
+Per SOLUTION.md: recon is **offline, white-box, may use an attacker LLM**, and
 does NOT consume the competition's 9,000s budget. Its outputs are **confirmed,
 deterministic payload strings / arg variants** that get baked into `attack.py`.
 
@@ -89,4 +89,4 @@ score instead.)
   `uv sync --extra agents`. On CPU/WSL, prefer synthetic traces (see `tests/`)
   or a deterministic agent for logic work.
 - Anything non-deterministic must be frozen before it reaches `attack.py`
-  (CLAUDE.md §6): replay must reproduce the finding exactly.
+  (SOLUTION.md): replay must reproduce the finding exactly.

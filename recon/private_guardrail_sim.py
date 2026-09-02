@@ -9,7 +9,7 @@ is deterministic once the tool-call args are fixed (model compliance is already 
 This turns the private hedge from speculation into measurement (CaMeL/§4 idea, executed).
 
 Guardrail variants (grounded in the public OptimalGuardrail + nakamura's hardening
-suggestions, docs/empirical-findings + the scoring-surface analysis):
+suggestions, the scoring analysis + the scoring-surface analysis):
   public        : real OptimalGuardrail — scans only the FIRST-PRESENT arg
                   [path,url,cmd,data,body,content] for 8 keywords. http.post → url only,
                   so `data` (the secret) is NOT scanned → marker-exfil passes.

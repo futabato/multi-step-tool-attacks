@@ -31,6 +31,6 @@ uv run kaggle kernels status futabato/jed-attack-submission
 ## Caveats
 - Each run drives 20B-class models on T4 for the full budget across 4 boards →
   significant **GPU-hour** cost. Check remaining quota first.
-- Per-day submission limit is unconfirmed (CLAUDE.md §8) — don't burn slots.
+- Per-day submission limit is unconfirmed (SOLUTION.md) — don't burn slots.
 - `attack.py`'s yield is unvalidated against the real agents locally (no GPU);
   the first submission establishes the pipeline + a leaderboard baseline.

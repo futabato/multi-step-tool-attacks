@@ -1,4 +1,4 @@
-"""Mutation operators for cell-farming (CLAUDE.md §2).
+"""Mutation operators for cell-farming (SOLUTION.md).
 
 Score cells split on tool ARGUMENTS:
   - fs.read/write/delete : path

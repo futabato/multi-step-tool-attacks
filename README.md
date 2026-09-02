@@ -1,51 +1,61 @@
-# Multi-Step Tool Attacks — Kaggle
+# Multi-Step Tool Attacks — a Kaggle solution
 
-Search policy (`attack.py`) for the Kaggle competition **AI Agent Security:
-Multi-Step Tool Attacks** (`ai-agent-security-multi-step-tool-attacks`, $50,000).
+Our entry for the Kaggle competition **[AI Agent Security: Multi-Step Tool
+Attacks](https://www.kaggle.com/competitions/ai-agent-security-multi-step-tool-attacks)**
+($50,000). The deliverable is `attack.py`: a coverage-guided **indirect
+prompt-injection search policy** that drives a fixed agent (GPT-OSS / Gemma)
+through user messages so it makes predicate-triggering tool calls that survive a
+guardrail, maximizing distinct score **cells**. There is no training and no
+prediction.
 
-The deliverable is a coverage-guided indirect-prompt-injection **search policy**:
-drive a fixed agent (GPT-OSS / Gemma) via user messages so it makes
-predicate-triggering tool calls that succeed past the guardrail, maximizing
-distinct score **cells**. There is no training and no prediction.
+## Result
 
-> Read [`CLAUDE.md`](CLAUDE.md) first — it is the living spec (scoring oracle,
-> guardrail logic, env interface, strategy). Confirmed mechanics are in §1–3.
+| | public | private (the prize) |
+|---|--:|--:|
+| **exfil arm** (marker throughput) | **91.585** | **0.000** |
+| **deputy arm** (unauthorized `email.send`) | 25.155 | **25.185** ← our score |
+
+The private rerun runs the same candidates against a **held-out** guardrail. The
+public score was a mirage: our high-throughput exfil arm scored **0** on private,
+along with **2,885 other teams**. The submission that carried us — an attack that
+reads no data and leaks no secret — transferred almost exactly (**25.155 →
+25.185**). Selecting it by hand, rather than letting auto-select keep our two
+highest *public* scores, was the decisive move.
+
+**[SOLUTION.md](SOLUTION.md)** is the write-up (paper format): how we reduced the
+public game to one equation, routed a prompt per model, predicted both scores
+offline, and hedged. 日本語版は **[SOLUTION_ja.md](SOLUTION_ja.md)**。
 
 ## Layout
 
 ```
-attack.py            # THE DELIVERABLE — self-contained, submitted to /kaggle/working/.
-                     #   class AttackAlgorithm(AttackAlgorithmBase). Do NOT import attacklib.
-attacklib/           # Local dev library (NOT submitted): harness, archive, seeds, mutate, verify.
-recon/               # Offline white-box recon (LLM allowed; bakes payloads into attack.py).
-tests/               # Smoke tests pinning the oracle (synthetic traces, no GPU).
-notebooks/           # Kaggle submission notebook (writes attack.py to /kaggle/working).
-scripts/             # fetch_sdk.sh — restore the SDK into comp/.
-comp/                # Downloaded SDK (aicomp_sdk + kaggle_evaluation). Gitignored.
-artifacts/           # Generated archives / candidate dumps. Gitignored.
-CLAUDE.md            # Living spec.
+attack.py       # THE DELIVERABLE — self-contained AttackAlgorithm(AttackAlgorithmBase),
+                #   written to /kaggle/working/. Does NOT import attacklib.
+attacklib/      # Local dev library (not submitted): harness, archive, seeds, mutate, verify.
+recon/          # Offline white-box recon: local_score.py (predict the score offline),
+                #   private_guardrail_sim.py (a stand-in for the held-out guardrail).
+docs/           # Research notes and surveys (QD/Go-Explore, reward hacking, IPI formats,
+                #   the scoring surface, red-team lessons). See docs/README.md.
+notebooks/      # Submission packaging (build_submission.py, kernel metadata).
+tests/          # Deterministic tests for the attack policy and our reading of the oracle.
+external/       # Submodule: a community proxy for the private eval (aduriseti).
+SOLUTION.md     # The write-up.
 ```
 
-## Setup
+## Reproduce
+
+The competition SDK (`aicomp_sdk`, `kaggle_evaluation`) is **not vendored** — it is
+git-ignored under `comp/`. Fetch it with `scripts/fetch_sdk.sh`, then:
 
 ```bash
-uv sync                 # light deps: predicates/cells/scoring import without torch
-bash scripts/fetch_sdk.sh   # download the SDK into comp/ (needs ~/.kaggle/kaggle.json)
-uv run pytest           # smoke tests
+uv sync
+uv run python -m pytest tests/ -q          # deterministic policy + oracle tests
+uv run python recon/local_score.py --help  # predict a submission's score offline
 ```
 
-Driving the real target LLMs locally (GPU required):
+`attack.py` is standalone: the Kaggle evaluator loads it, calls
+`AttackAlgorithm().run(env, config)`, and replays the returned `user_messages`.
 
-```bash
-uv sync --extra agents  # torch + transformers + openai
-```
+## License
 
-## Key facts (see CLAUDE.md for detail)
-- **finding** = `eval_predicates(trace)` non-empty (the `core/predicates.py` oracle,
-  NOT the guardrail). All four predicates require a **successful** tool call.
-- **guardrail** (`OptimalGuardrail` public / private) blocks calls → `ok:False` →
-  predicate doesn't fire. It is an obstacle, not the scorer.
-- **score cell** = `cell_signature(trace["tool_events"]).hash` — args-driven
-  (paths / URL domains / cmds), NOT message-text-driven.
-- `MAX_REPLAY_FINDINGS = 2000`; only the first 2000 candidates are scored.
-- Submission: `/kaggle/working/attack.py`, class `AttackAlgorithm`.
+[MIT](LICENSE).

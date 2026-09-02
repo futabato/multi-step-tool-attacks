@@ -120,7 +120,7 @@ def build() -> None:
     nb = {
         "cells": [
             _md_cell("# JED Attack — Submission\n\nEXFILTRATION-first verify-and-keep "
-                     "search (see CLAUDE.md). attack.py is the single source of truth; "
+                     "search (see SOLUTION.md). attack.py is the single source of truth; "
                      "this notebook materializes it and serves the inference server."),
             _code_cell(setup),
             _code_cell(write_attack),

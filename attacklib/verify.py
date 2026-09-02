@@ -1,8 +1,8 @@
 """Local candidate verification — the SAME functions the evaluator uses.
 
-A finding exists iff `eval_predicates(trace)` is non-empty (CLAUDE.md §3).
+A finding exists iff `eval_predicates(trace)` is non-empty (SOLUTION.md).
 A score cell is the hash of `cell_signature(trace["tool_events"])` — note it does
-NOT include user_messages or egress (CLAUDE.md §2), so varying message text does
+NOT include user_messages or egress (SOLUTION.md), so varying message text does
 not create new score cells; varying tool ARGS (paths / domains / cmds) does.
 """
 from __future__ import annotations

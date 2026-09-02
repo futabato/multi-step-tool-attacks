@@ -2,10 +2,10 @@
 
 > ⚠ **STATUS: pre-v3.1.2（2026-06-13 頃・仮説/recon 期）— 部分的に陳腐化**。
 > evaluator は v3.1.2 にデプロイ済みで前提が変わった（**「Submission Format Error」＝タイムアウト・候補数天井 ~300-600・single-post EXFIL breadth が唯一最適・stacking/tailoring/multi-step は全滅**）。
-> **現行の確定事実は `CLAUDE.md §0.0`（v0.7）と `docs/working-note.md`・`docs/empirical-findings.md` を参照**。本ファイルは機序の背景・歴史として読む（payload `TOKEN=admin123`/`sk_live_test` は旧式 → 現行は `SECRET_MARKER`）。
+> **確定した最終知見は repo ルートの `SOLUTION.md` を参照**。本ファイルは機序の背景・研究ノートとして読む（payload `TOKEN=admin123`/`sk_live_test` は旧式 → 現行は `SECRET_MARKER`）。
 
 
-> 本コンペ「AI Agent Security: Multi-Step Tool Attacks」の白箱準備（CLAUDE.md §7）。
+> 本コンペ「AI Agent Security: Multi-Step Tool Attacks」の白箱準備（SOLUTION.md）。
 > 標的モデル（GPT-OSS / Gemma）の公開特性・SDK パース面と、公開レッドチーミング手法を
 > **採点機構にマップ**して整理する。調査日 2026-06-13。
 
@@ -101,7 +101,7 @@
 UNTRUSTED/DESTRUCTIVE を private で開けるには「モデル jailbreak」ではなく**guardrail を意識したデータフロー設計**が要る。
 
 ### 重要な訂正
-CLAUDE.md §7 が挙げた「**ShieldGemma の閾値**」は**本コンペでは攻撃面ではない**（パイプラインに ShieldGemma が無い）。
+SOLUTION.md が挙げた「**ShieldGemma の閾値**」は**本コンペでは攻撃面ではない**（パイプラインに ShieldGemma が無い）。
 Gemma が従うのはモデル自身の安全訓練が marker-exfil を危険と見なさないため。
 
 ---

@@ -2,11 +2,11 @@
 
 > ⚠ **STATUS: pre-v3.1.2（2026-06-13 頃・仮説/recon 期）— 部分的に陳腐化**。
 > evaluator は v3.1.2 にデプロイ済みで前提が変わった（**「Submission Format Error」＝タイムアウト・候補数天井 ~300-600・single-post EXFIL breadth が唯一最適・stacking/tailoring/multi-step は全滅**）。
-> **現行の確定事実は `CLAUDE.md §0.0`（v0.7）と `docs/working-note.md`・`docs/empirical-findings.md` を参照**。本ファイルは機序の背景・歴史として読む（payload `TOKEN=admin123`/`sk_live_test` は旧式 → 現行は `SECRET_MARKER`）。
+> **確定した最終知見は repo ルートの `SOLUTION.md` を参照**。本ファイルは機序の背景・研究ノートとして読む（payload `TOKEN=admin123`/`sk_live_test` は旧式 → 現行は `SECRET_MARKER`）。
 
 
 > 評価式から逆算した「どのレバーを引けば伸びるか」。用語は docs/glossary.md、
-> 成功条件は docs/attack-success-conditions.md、現在地は CLAUDE.md。
+> 成功条件は docs/attack-success-conditions.md、現在地は SOLUTION.md。
 
 ---
 
@@ -61,6 +61,11 @@ P=8 → 130 raw / 8 hop = 16.25 /hop   ← +2 cell が薄まり不利
 ```
 → **「単発 × 大量 × 高発火率」が replay 律速下の最適**（= v1 が7位を取った形）。
 → candidate 上限(2000)に余裕があり replay 予算も余る時だけ、P を上げて severity を積む。
+
+> **⚠ superseded（最終結論は [`SOLUTION.md`](../SOLUTION.md)）**：「GPT-OSS multi-endpoint で P=8」は
+> **後の host 実測で throughput-negative と確定**（hop ごとに harmony CoT を再生成し wall が爆発、raw/wall が
+> 単発の ~1/8）。**P=1 単発（gpt は 2-post burst2 が上限）が最適**で、multi-post/continuation は不成立。
+> gemma は 1-tool-call/generation の parser cap で構造的に P=1。
 
 ---
 
