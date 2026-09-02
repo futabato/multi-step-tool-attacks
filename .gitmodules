@@ -1,0 +1,3 @@
+[submodule "external/private-eval-proxy"]
+	path = external/private-eval-proxy
+	url = https://github.com/aduriseti/kaggle-aas-private-eval-proxy

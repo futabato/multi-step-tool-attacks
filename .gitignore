@@ -1,0 +1,20 @@
+# Downloaded competition SDK (restore with scripts/fetch_sdk.sh)
+comp/
+
+# Generated archives / candidate dumps
+artifacts/*
+!artifacts/.gitkeep
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.swp
+*.swo
+
+evaluation_artifacts/
+.starters/
+.claude/settings.local.json
+recon/feed/
